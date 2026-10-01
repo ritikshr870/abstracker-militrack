@@ -1,0 +1,40 @@
+{
+  "name": "abstracker-telematics-suite",
+  "version": "4.5.0",
+  "description": "Enterprise Fleet Tracking & Telematics Administration Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "npm install --prefix client && npm install --prefix user-client && npm run build --prefix client && npm run build --prefix user-client",
+    "build:client": "npm install --prefix client && npm run build --prefix client",
+    "build:user": "npm install --prefix user-client && npm run build --prefix user-client"
+  },
+  "keywords": [
+    "traccar",
+    "millitrack",
+    "telematics",
+    "fleet-management",
+    "gps-tracking",
+    "websocket",
+    "mappls",
+    "mapmyindia",
+    "permissions",
+    "ais140"
+  ],
+  "author": "Abstracker Team",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+.custom-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Auth Screen Gradient Background */
+.auth-bg-gradient {
+  background: radial-gradient(circle at top right, #1e1b4b, #09090b 60%),
+              radial-gradient(circle at bottom left, #450a0a, #09090b 70%);
+}
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.25;
+  animation: floatOrb 8s ease-in-out infinite alternate;
+}
+@keyframes floatOrb {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(30px, -40px) scale(1.15); }
+}
+
+/* Navigation Tabs */
+.nav-tab.active {
+  background-color: #09090b;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Form Components */
+.form-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.form-input {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.825rem;
+  color: #0f172a;
+  transition: all 0.2s;
+}
+.form-input:focus {
+  outline: none;
+  border-color: #2b35d8;
+  box-shadow: 0 0 0 2px rgba(43, 53, 216, 0.15);
+}
+
+/* Buttons */
+.btn-royal-blue {
+  background-color: #2b35d8;
+  color: #ffffff;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.btn-royal-blue:hover {
+  background-color: #2029b3;
+}
+
+/* Badges & Chips */
+.chip-badge {
+  background-color: #e2e8f0;
+  color: #1e293b;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.chip-badge:hover {
+  background-color: #cbd5e1;
+}
+.chip-badge .chip-remove {
+  cursor: pointer;
+  color: #64748b;
+}
+.chip-badge .chip-remove:hover {
+  color: #dc2626;
+}
+
+/* Spinner */
+.spinner-ring {
+  display: inline-block;
+  width: 44px;
+  height: 44px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #dc2626;
+  border-radius: 50%;
+  animation: spinRing 0.8s linear infinite;
+}
+@keyframes spinRing {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Viewport-Safe Modal Architecture */
+.modal-backdrop-fixed {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  overflow: hidden;
+}
+.modal-sheet-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  width: 100%;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.leaflet-control-layers {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.leaflet-container {
+  background: #e2e8f0 !important;
+}
+
+/* Smooth vehicle gliding animation */
+.vehicle-div-icon {
+  transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  will-change: transform;
+}
+.vehicle-div-icon > div {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Transparent wrapper for vehicle live location tooltip */
+.vehicle-location-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.vehicle-location-tooltip::before {
+  display: none !important;
+}
+
+/* 3D Moon Flip & Cursive Typography */
+@keyframes moonFlip3D {
+  0% {
+    transform: perspective(1000px) rotateY(0deg) scale(1);
+    filter: drop-shadow(0 0 25px rgba(255, 255, 255, 0.5));
+  }
+  50% {
+    transform: perspective(1000px) rotateY(180deg) scale(1.18);
+    filter: drop-shadow(0 0 50px rgba(254, 240, 138, 0.85));
+  }
+  100% {
+    transform: perspective(1000px) rotateY(360deg) scale(1);
+    filter: drop-shadow(0 0 25px rgba(255, 255, 255, 0.5));
+  }
+}
+
+.moon-flipping {
+  animation: moonFlip3D 1.15s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.font-cursive-logo {
+  font-family: 'Great Vibes', 'Dancing Script', 'Pacifico', cursive;
+}

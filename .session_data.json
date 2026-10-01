@@ -1,0 +1,85 @@
+{
+  "cookie": "JSESSIONID=node0112hjfrucri986aps61z9atc9393165.node0",
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOTM1MCIsImlzcyI6Imdwcy10cmFja2VyIiwiaWF0IjoxNzg4NTk1MTIwfQ.1vB7a_dSdUaByLiByYPSt_4EhBRYNSMdYnZLg0aGcLU",
+  "basicAuth": "Basic YWJzdHJhY2tlcjo0NTY3ODk=",
+  "email": "abstracker",
+  "password": "456789",
+  "user": {
+    "id": 29350,
+    "attributes": {
+      "speedUnit": "kmh",
+      "distanceUnit": "km",
+      "volumeUnit": "ltr",
+      "timezone": "Asia/Kolkata",
+      "preExpiryAccess": true,
+      "fcmDetails": {
+        "data": [
+          {
+            "time": 1789191865769,
+            "token": "ePKHfcNgS_mMKuEzA2G8Ff:APA91bH0b1iMt6UvLVZEE5ZJq7bi1qfYHC1eVtr2m5pRmqNqrTUQa5zIIdTZiM-luFvXmJ7u7xdYp5xaCbUimpMhTfrPmOHi2IOJ7cd108ePSsBuMHRh_1M",
+            "type": "ANDROID",
+            "disabled": true,
+            "app": "com.millitrack.android.gpstracker",
+            "nd": false
+          },
+          {
+            "time": 1789579205472,
+            "token": "dFF2dFs_pk8Hl3EqrSKf2_:APA91bFYczwsRhUzPXnhfo7ELsgUCjuJEJ_WnJWpC4JX-2Ccpyy2isttNLxHZarQgclA4AmBYnmqPqmK1gf_udfbqaXjoz7RLJyRQwiTVQxRjGsm1JefMkU",
+            "type": "IOS",
+            "disabled": false,
+            "app": "com.millitrack.gpstracker",
+            "nd": false
+          },
+          {
+            "time": 1790652848713,
+            "token": "cjtwDyuzT4CGFjXWbLwYDu:APA91bHM1yo3QrBnljyj7NjUTzuWsuwlHxHJ-wK8O3YxoZRB4motO1awVE9kZyO52HlItZdWPzvw1irH13ybI_aYCj8f4ELQHPpkupzipm1im7Wu_L7xESU",
+            "type": "ANDROID",
+            "disabled": true,
+            "app": "com.millitrack.android.gpstracker",
+            "nd": false
+          },
+          {
+            "time": 1790767401116,
+            "token": "fcD0FKrPv0NDsHn3tcYJeh:APA91bG78pkvvX7V9H6e4lQL91d6OM2Lhg57gDqLJnVB80x1QiAguv-_nMDqnCen9gARugClZw9pQ6J0GY15iPz6TWnRaIAsp6MAgoDvjovBoGnTxDBObU4",
+            "type": "IOS",
+            "disabled": false,
+            "app": "com.millitrack.gpstracker",
+            "nd": false
+          }
+        ]
+      }
+    },
+    "name": "ABS Tracker (D per)",
+    "username": "abstracker",
+    "login": null,
+    "email": "abstracker0@gmail.com",
+    "phone": "9123200739",
+    "readonly": false,
+    "administrator": false,
+    "map": "googleRoadmap",
+    "latitude": 28.554171,
+    "longitude": 77.186777,
+    "zoom": 15,
+    "twelveHourFormat": false,
+    "coordinateFormat": "dd",
+    "disabled": false,
+    "expirationTime": "2035-02-26T05:36:01.000+00:00",
+    "poiLayer": null,
+    "deviceLimit": 5000,
+    "userLimit": 5000,
+    "deviceReadonly": false,
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOTM1MCIsImlzcyI6Imdwcy10cmFja2VyIiwiaWF0IjoxNzg4NTk1MTIwfQ.1vB7a_dSdUaByLiByYPSt_4EhBRYNSMdYnZLg0aGcLU",
+    "limitCommands": true,
+    "userMaidenPoints": 11,
+    "userRevivalPoints": 25,
+    "deviceMaidenPoints": 0,
+    "deviceRevivalPoints": 0,
+    "devicePoints": 54,
+    "prepaid": true,
+    "creationTime": "2022-02-26T13:13:54.000+00:00",
+    "lastPasswordResetAt": "2026-09-05T07:57:40.000+00:00",
+    "distributor": true,
+    "address": "",
+    "password": null
+  }
+}

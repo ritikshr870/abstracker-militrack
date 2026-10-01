@@ -1,0 +1,3380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abstracker | Enterprise Telematics & Fleet OS</title>
+
+  <!-- Tailwind CSS & FontAwesome Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <!-- OpenStreetMap Leaflet Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Auth Screen Gradient Background */
+    .auth-bg-gradient {
+      background: radial-gradient(circle at top right, #1e1b4b, #09090b 60%),
+                  radial-gradient(circle at bottom left, #450a0a, #09090b 70%);
+    }
+    .glow-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.25;
+      animation: floatOrb 8s ease-in-out infinite alternate;
+    }
+    @keyframes floatOrb {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(30px, -40px) scale(1.15); }
+    }
+
+    /* Navigation Tabs */
+    .nav-tab.active {
+      background-color: #09090b;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Form Components */
+    .form-card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .form-input {
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.55rem 0.85rem;
+      font-size: 0.825rem;
+      color: #0f172a;
+      transition: all 0.2s;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #2b35d8;
+      box-shadow: 0 0 0 2px rgba(43, 53, 216, 0.15);
+    }
+
+    /* Buttons */
+    .btn-royal-blue {
+      background-color: #2b35d8;
+      color: #ffffff;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    .btn-royal-blue:hover {
+      background-color: #2029b3;
+    }
+
+    /* Badges & Chips */
+    .chip-badge {
+      background-color: #e2e8f0;
+      color: #1e293b;
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .chip-badge:hover {
+      background-color: #cbd5e1;
+    }
+    .chip-badge .chip-remove {
+      cursor: pointer;
+      color: #64748b;
+    }
+    .chip-badge .chip-remove:hover {
+      color: #dc2626;
+    }
+
+    /* Spinner */
+    .spinner-ring {
+      display: inline-block;
+      width: 44px;
+      height: 44px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #dc2626;
+      border-radius: 50%;
+      animation: spinRing 0.8s linear infinite;
+    }
+    @keyframes spinRing {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Viewport-Safe Modal Architecture */
+    .modal-backdrop-fixed {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background-color: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem;
+      overflow: hidden;
+    }
+    .modal-sheet-card {
+      background: #ffffff;
+      border-radius: 1rem;
+      width: 100%;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    .leaflet-control-layers {
+      border-radius: 8px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden font-sans select-none">
+
+  <!-- Anti-Autofill Decoys -->
+  <input type="text" name="decoy_user_safe" style="display:none" aria-hidden="true" tabindex="-1">
+  <input type="password" name="decoy_pass_safe" style="display:none" aria-hidden="true" tabindex="-1">
+
+  <!-- ================= GLOBAL LOADER ================= -->
+  <div id="globalLoader" class="fixed inset-0 z-[100] bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3 text-white hidden">
+    <div class="spinner-ring"></div>
+    <p class="text-xs font-bold tracking-wider uppercase text-slate-200" id="globalLoaderText">Synchronizing...</p>
+  </div>
+
+  <!-- ================= 1. AUTH SCREEN ================= -->
+  <div id="authScreen" class="fixed inset-0 z-50 auth-bg-gradient flex items-center justify-center p-4 overflow-hidden">
+    <div class="glow-orb w-96 h-96 bg-red-600 top-10 left-10"></div>
+    <div class="glow-orb w-96 h-96 bg-indigo-600 bottom-10 right-10" style="animation-delay: -4s;"></div>
+
+    <div class="relative z-10 bg-white/95 backdrop-blur-xl rounded-3xl p-8 sm:p-10 max-w-md w-full shadow-2xl border border-white/20 space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-24 h-24 mx-auto rounded-2xl p-1 bg-gradient-to-tr from-red-600 via-indigo-600 to-red-500 shadow-xl shadow-red-900/20 flex items-center justify-center overflow-hidden">
+          <img src="https://ik.imagekit.io/xgxpgvop9/abstracker.jpg" alt="Abstracker Logo" class="w-full h-full object-cover rounded-xl shadow-inner">
+        </div>
+        <div>
+          <h2 class="text-2xl font-black tracking-wider text-slate-900">ABSTRACKER</h2>
+          <p class="text-[11px] font-bold text-red-600 uppercase tracking-widest mt-0.5">Powered by Ritik Sharma</p>
+        </div>
+        <p class="text-xs text-slate-500 font-medium">Enterprise Telematics & Hardware Command Center</p>
+      </div>
+
+      <form onsubmit="handleLoginSubmit(event)" class="space-y-4 pt-1" autocomplete="off">
+        <div>
+          <label class="text-[11px] font-bold text-slate-700 block mb-1 uppercase tracking-wider">Username / Email</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-xs">
+              <i class="fa-solid fa-user"></i>
+            </span>
+            <input type="text" id="loginUsername" value="Abstracker" required class="w-full form-input pl-9 font-medium" autocomplete="username">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-700 block mb-1 uppercase tracking-wider">Password</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-xs">
+              <i class="fa-solid fa-key"></i>
+            </span>
+            <input type="password" id="loginPassword" value="Abstracker098@" required class="w-full form-input pl-9 pr-10 font-medium" autocomplete="current-password">
+            <button type="button" onclick="togglePasswordVisibility('loginPassword')" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
+              <i class="fa-regular fa-eye-slash" id="loginPasswordEye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="loginBtn" class="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition duration-200 shadow-lg shadow-red-600/30 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Sign In to Fleet Control</span>
+        </button>
+      </form>
+
+      <p id="authErrorMsg" class="text-xs text-red-600 text-center font-bold hidden"></p>
+
+      <div class="pt-2 text-center border-t border-slate-100">
+        <span class="text-[10px] text-slate-400 font-mono font-medium">v12.5 Ultra-HD Telematics • AIS 140 Engine</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 2. TOP APPLICATION HEADER ================= -->
+  <header class="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between z-30 flex-shrink-0 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shadow-sm flex-shrink-0">
+        <img src="https://ik.imagekit.io/xgxpgvop9/abstracker.jpg" alt="Logo" class="w-full h-full object-cover">
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-black tracking-wider text-black">ABSTRACKER</h1>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-200">FLEET OS</span>
+        </div>
+        <p class="text-[11px] text-slate-500 font-medium">
+          Fleet Telematics Hub <span class="text-slate-300 mx-1">•</span> <span class="text-red-600 font-bold">Powered by Ritik Sharma</span>
+        </p>
+      </div>
+    </div>
+
+    <nav class="hidden md:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 text-xs font-bold">
+      <button onclick="switchTab('fleet')" id="nav-fleet" class="nav-tab active px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+        <i class="fa-solid fa-list-check text-red-500"></i> Fleet Dashboard
+      </button>
+      <button onclick="switchTab('devices')" id="nav-devices" class="nav-tab px-4 py-2 rounded-lg text-slate-600 hover:text-black transition flex items-center gap-1.5">
+        <i class="fa-solid fa-truck text-red-500"></i> Devices Manager
+      </button>
+      <button onclick="switchTab('users')" id="nav-users" class="nav-tab px-4 py-2 rounded-lg text-slate-600 hover:text-black transition flex items-center gap-1.5">
+        <i class="fa-solid fa-users-gear text-red-500"></i> Users Directory
+      </button>
+      <button onclick="switchTab('reports')" id="nav-reports" class="nav-tab px-4 py-2 rounded-lg text-slate-600 hover:text-black transition flex items-center gap-1.5">
+        <i class="fa-solid fa-chart-line text-red-500"></i> Reports Hub
+      </button>
+      <button onclick="switchTab('geofences')" id="nav-geofences" class="nav-tab px-4 py-2 rounded-lg text-slate-600 hover:text-black transition flex items-center gap-1.5">
+        <i class="fa-solid fa-draw-polygon text-red-500"></i> Geofences & Groups
+      </button>
+      <button onclick="switchTab('system')" id="nav-system" class="nav-tab px-4 py-2 rounded-lg text-slate-600 hover:text-black transition flex items-center gap-1.5">
+        <i class="fa-solid fa-server text-red-500"></i> Ports & Billing
+      </button>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <div class="text-right hidden sm:block">
+        <p id="topUserName" class="text-xs font-bold text-black">Administrator</p>
+        <p class="text-[10px] text-red-600 font-bold uppercase tracking-wider flex items-center gap-1 justify-end">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Live Stream
+        </p>
+      </div>
+
+      <button onclick="refreshCurrentTab()" title="Sync Realtime Data" class="px-3 py-1.5 rounded-lg text-xs bg-slate-900 hover:bg-black text-white transition flex items-center gap-1.5 font-bold shadow-sm">
+        <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i> Sync
+      </button>
+
+      <button onclick="handleUserLogout()" title="Log out" class="px-3 py-1.5 rounded-lg text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition flex items-center gap-1.5 font-bold">
+        <i class="fa-solid fa-power-off"></i> Logout
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="md:hidden bg-white border-b border-slate-200 p-1.5 flex items-center justify-around text-[10px] font-bold z-20 overflow-x-auto">
+    <button onclick="switchTab('fleet')" id="m-nav-fleet" class="px-2.5 py-1.5 rounded-lg bg-slate-900 text-white">Dashboard</button>
+    <button onclick="switchTab('devices')" id="m-nav-devices" class="px-2.5 py-1.5 rounded-lg text-slate-600">Devices</button>
+    <button onclick="switchTab('users')" id="m-nav-users" class="px-2.5 py-1.5 rounded-lg text-slate-600">Users</button>
+    <button onclick="switchTab('reports')" id="m-nav-reports" class="px-2.5 py-1.5 rounded-lg text-slate-600">Reports</button>
+    <button onclick="switchTab('geofences')" id="m-nav-geofences" class="px-2.5 py-1.5 rounded-lg text-slate-600">Fences</button>
+    <button onclick="switchTab('system')" id="m-nav-system" class="px-2.5 py-1.5 rounded-lg text-slate-600">System</button>
+  </nav>
+
+  <!-- ================= 3. MAIN WORKSPACE ================= -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- TAB 1: FLEET DASHBOARD -->
+    <section id="section-fleet" class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scroll flex flex-col gap-5">
+      <div class="max-w-7xl mx-auto w-full space-y-4">
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-[11px] font-bold uppercase text-slate-400">Total Registered Fleet</p>
+              <h3 class="text-2xl font-black text-black mt-0.5" id="kpiTotal">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-truck"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-[11px] font-bold uppercase text-emerald-600">Running / Moving</p>
+              <h3 class="text-2xl font-black text-emerald-600 mt-0.5" id="kpiRunning">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-gauge-high"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-[11px] font-bold uppercase text-amber-600">Stopped / Idle</p>
+              <h3 class="text-2xl font-black text-amber-600 mt-0.5" id="kpiStopped">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-circle-stop"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-[11px] font-bold uppercase text-red-600">Offline / Inactive</p>
+              <h3 class="text-2xl font-black text-red-600 mt-0.5" id="kpiOffline">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="flex flex-col sm:flex-row items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-3">
+          <div class="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+            <button onclick="setFleetFilter('ALL')" id="fleetFilter-ALL" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white transition">All Units</button>
+            <button onclick="setFleetFilter('RUNNING')" id="fleetFilter-RUNNING" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Running</button>
+            <button onclick="setFleetFilter('STOPPED')" id="fleetFilter-STOPPED" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Stopped</button>
+            <button onclick="setFleetFilter('OFFLINE')" id="fleetFilter-OFFLINE" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Offline</button>
+          </div>
+
+          <div class="relative w-full sm:w-80">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input 
+              type="search" 
+              id="fleetSearchInput" 
+              name="fleet_search_telematics_safe"
+              autocomplete="new-password"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              oninput="onFleetSearchChange()" 
+              placeholder="Search vehicle number, IMEI, location..." 
+              class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-8 py-1.5 text-xs text-black focus:outline-none focus:border-red-600 font-medium">
+            <button type="button" onclick="clearFleetSearch()" class="absolute right-2.5 top-2 text-slate-400 hover:text-black text-xs">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fleet Grid -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-700 min-w-[900px]">
+              <thead class="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
+                <tr>
+                  <th class="px-4 py-3">Vehicle Details</th>
+                  <th class="px-4 py-3">IMEI / SIM</th>
+                  <th class="px-4 py-3">Driver / Contact</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3">Live Speed</th>
+                  <th class="px-4 py-3">Ignition</th>
+                  <th class="px-4 py-3">Today Distance</th>
+                  <th class="px-4 py-3">Location Address</th>
+                  <th class="px-4 py-3">Last Seen</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="fleetTableBody" class="divide-y divide-slate-100 font-medium">
+                <tr><td colspan="10" class="text-center py-12 text-slate-400">Loading active fleet telemetry...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs gap-2">
+            <div class="flex items-center gap-2 text-slate-600">
+              <span>Showing</span>
+              <select id="fleetPageSize" onchange="onFleetPageSizeChange()" class="border border-slate-200 rounded px-2 py-1 bg-white text-xs font-semibold focus:outline-none">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+              <span>units per page | Total: <strong class="text-black font-bold" id="fleetTotalUnitsCount">0</strong></span>
+            </div>
+            <div class="flex items-center gap-1" id="fleetPaginationControls"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: DEVICES MANAGER -->
+    <section id="section-devices" class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scroll hidden">
+      <div class="max-w-7xl mx-auto space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-3">
+          <div>
+            <h2 class="text-base font-black text-slate-900">Hardware Inventory & Registered Devices</h2>
+            <p class="text-xs text-slate-500">Configure vehicle numbers, models, categories, user connections, and attributes</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="text" id="devSearchInput" oninput="onDeviceSearchChange()" placeholder="Search devices..." autocomplete="off" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-black focus:outline-none focus:border-red-600 font-medium">
+            <button onclick="openDeviceFormModal('add')" class="px-4 py-2 btn-royal-blue rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-sm whitespace-nowrap">
+              <i class="fa-solid fa-plus"></i> Add Device
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-700 min-w-[800px]">
+              <thead class="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
+                <tr>
+                  <th class="px-4 py-3">Vehicle</th>
+                  <th class="px-4 py-3">Identifier / IMEI</th>
+                  <th class="px-4 py-3">Model</th>
+                  <th class="px-4 py-3">SIM Phone</th>
+                  <th class="px-4 py-3">Category</th>
+                  <th class="px-4 py-3">Driver Info</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTableBody" class="divide-y divide-slate-100 font-medium">
+                <tr><td colspan="8" class="text-center py-8 text-slate-400">Loading devices...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs gap-2">
+            <div class="flex items-center gap-2 text-slate-600">
+              <span>Showing</span>
+              <select id="devicePageSize" onchange="onDevicePageSizeChange()" class="border border-slate-200 rounded px-2 py-1 bg-white text-xs font-semibold focus:outline-none">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+              </select>
+              <span>units | Total: <strong class="text-black font-bold" id="devicesTotalCount">0</strong></span>
+            </div>
+            <div class="flex items-center gap-1" id="devicePaginationControls"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: USERS DIRECTORY -->
+    <section id="section-users" class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scroll hidden">
+      <div class="max-w-7xl mx-auto space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-3">
+          <div>
+            <h2 class="text-base font-black text-slate-900">User Accounts & Access Hierarchy</h2>
+            <p class="text-xs text-slate-500">Manage client profiles, credentials, vehicle assignments, and alerts</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="text" id="userSearchInput" oninput="onUserSearchChange()" placeholder="Search users..." autocomplete="off" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-black focus:outline-none focus:border-red-600 font-medium">
+            <button onclick="openUserFormModal('add')" class="px-4 py-2 btn-royal-blue rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-sm whitespace-nowrap">
+              <i class="fa-solid fa-user-plus"></i> Add User
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-700 min-w-[700px]">
+              <thead class="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
+                <tr>
+                  <th class="px-4 py-3">Customer Name</th>
+                  <th class="px-4 py-3">Username / Email</th>
+                  <th class="px-4 py-3">Mobile Number</th>
+                  <th class="px-4 py-3">Quota Limit</th>
+                  <th class="px-4 py-3">Role</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody" class="divide-y divide-slate-100 font-medium">
+                <tr><td colspan="6" class="text-center py-8 text-slate-400">Loading user directory...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs gap-2">
+            <div class="flex items-center gap-2 text-slate-600">
+              <span>Showing</span>
+              <select id="userPageSize" onchange="onUserPageSizeChange()" class="border border-slate-200 rounded px-2 py-1 bg-white text-xs font-semibold focus:outline-none">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+              </select>
+              <span>accounts | Total: <strong class="text-black font-bold" id="usersTotalCount">0</strong></span>
+            </div>
+            <div class="flex items-center gap-1" id="userPaginationControls"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: ENHANCED REPORTS HUB -->
+    <section id="section-reports" class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scroll hidden">
+      <div class="max-w-7xl mx-auto space-y-4">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+            <div>
+              <h2 class="text-base font-black text-slate-900">Enterprise Reports Hub</h2>
+              <p class="text-xs text-slate-500">Query trips, stoppages, speed analysis, ignition duration, and sequential route tracking logs</p>
+            </div>
+            <button onclick="downloadReportExcel()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-sm whitespace-nowrap self-start sm:self-auto">
+              <i class="fa-solid fa-file-excel"></i> Export Excel (.xlsx)
+            </button>
+          </div>
+
+          <!-- Quick Date Presets -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Quick Presets:</span>
+            <button type="button" onclick="setReportDatePreset('today')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-semibold text-slate-700">Today</button>
+            <button type="button" onclick="setReportDatePreset('yesterday')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-semibold text-slate-700">Yesterday</button>
+            <button type="button" onclick="setReportDatePreset('3days')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-semibold text-slate-700">Last 3 Days</button>
+            <button type="button" onclick="setReportDatePreset('week')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-semibold text-slate-700">This Week</button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label class="text-[11px] font-bold text-slate-600 block mb-1">Report Category</label>
+              <select id="reportCategorySelect" class="w-full form-input bg-white font-medium">
+                <option value="route">Route Positions Log</option>
+                <option value="summary">Summary Report</option>
+                <option value="trips">Trips Report</option>
+                <option value="stops">Stops Report</option>
+                <option value="events">Events & Alerts Report</option>
+                <option value="ignitionDuration">Ignition Duration Report</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[11px] font-bold text-slate-600 block mb-1">Target Vehicle</label>
+              <select id="reportDeviceSelect" class="w-full form-input bg-white font-medium"></select>
+            </div>
+
+            <div>
+              <label class="text-[11px] font-bold text-slate-600 block mb-1">From Timestamp</label>
+              <input type="datetime-local" id="reportFromDate" class="w-full form-input text-xs font-medium">
+            </div>
+
+            <div class="flex flex-col justify-end">
+              <label class="text-[11px] font-bold text-slate-600 block mb-1">To Timestamp</label>
+              <div class="flex items-center gap-2">
+                <input type="datetime-local" id="reportToDate" class="w-full form-input text-xs font-medium">
+                <button onclick="generateReportQuery()" class="px-4 py-2 btn-royal-blue text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+                  <i class="fa-solid fa-filter"></i> Run
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary KPI Strip -->
+        <div id="reportSummaryMetrics" class="grid grid-cols-2 sm:grid-cols-4 gap-3 hidden">
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Total Records</span>
+              <span class="text-xl font-black text-slate-900 mt-0.5" id="repMetricRecords">0</span>
+            </div>
+            <div class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 text-sm">
+              <i class="fa-solid fa-list-ol"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-bold text-emerald-600 block">Distance Covered</span>
+              <span class="text-xl font-black text-emerald-600 mt-0.5" id="repMetricDistance">0.00 km</span>
+            </div>
+            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 text-sm">
+              <i class="fa-solid fa-road"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-bold text-blue-600 block">Speed Analysis</span>
+              <div class="flex items-baseline gap-1.5 mt-0.5">
+                <span class="text-xl font-black text-blue-600" id="repMetricMaxSpeed">0 km/h</span>
+                <span class="text-[10px] text-slate-400 font-bold" id="repMetricAvgSpeed">(Avg 0)</span>
+              </div>
+            </div>
+            <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 text-sm">
+              <i class="fa-solid fa-gauge-high"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-bold text-purple-600 block">Moving / Idle Duration</span>
+              <div class="flex flex-col mt-0.5">
+                <span class="text-sm font-black text-purple-600" id="repMetricDuration">Moving: 0m</span>
+                <span class="text-[10px] font-bold text-slate-400" id="repMetricIdle">Idle: 0m</span>
+              </div>
+            </div>
+            <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 text-sm">
+              <i class="fa-solid fa-clock"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <span class="text-xs font-bold text-slate-800" id="reportOutputTitle">Report Output</span>
+            <span class="text-xs font-mono font-bold text-slate-500" id="reportRowCount">0 records found</span>
+          </div>
+
+          <div class="overflow-x-auto max-h-[500px] custom-scroll">
+            <table class="w-full text-left text-xs text-slate-700 min-w-[750px]">
+              <thead class="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold sticky top-0 z-10" id="reportTableHead">
+                <tr><th class="px-4 py-3">Select vehicle and click Run to load report</th></tr>
+              </thead>
+              <tbody id="reportTableBody" class="divide-y divide-slate-100 font-medium">
+                <tr><td class="text-center py-12 text-slate-400">No active report generated</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: GEOFENCES & GROUPS -->
+    <section id="section-geofences" class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scroll hidden">
+      <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="text-sm font-black text-black">Active Geofences</h3>
+              <p class="text-xs text-slate-500">Virtual containment boundaries</p>
+            </div>
+            <span class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs" id="geofenceCountBadge">0</span>
+          </div>
+          <div id="geofenceItemsList" class="space-y-2 max-h-96 overflow-y-auto custom-scroll">
+            <p class="text-xs text-slate-400 py-4 text-center">Loading geofences...</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="text-sm font-black text-black">Vehicle Fleet Groups</h3>
+              <p class="text-xs text-slate-500">Organizational fleet clusters</p>
+            </div>
+            <span class="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center font-bold text-xs" id="groupCountBadge">0</span>
+          </div>
+          <div id="groupsItemsList" class="space-y-2 max-h-96 overflow-y-auto custom-scroll">
+            <p class="text-xs text-slate-400 py-4 text-center">Loading fleet groups...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: PORTS & BILLING -->
+    <section id="section-system" class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scroll hidden">
+      <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <div class="border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-black text-black">Server Supported Protocols & Ports</h3>
+            <p class="text-xs text-slate-500">Active Traccar telematic listeners on remote host</p>
+          </div>
+          <div id="portsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-96 overflow-y-auto custom-scroll">
+            <p class="text-xs text-slate-400 py-4 text-center col-span-3">Loading ports...</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <div class="border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-black text-black">Billing & Device Points Balance</h3>
+            <p class="text-xs text-slate-500">Point Type: <span class="font-mono text-red-600 font-bold">DEVICE_POINTS</span></p>
+          </div>
+          <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs">
+            <div class="flex justify-between">
+              <span class="text-slate-500">Account Owner:</span>
+              <strong class="text-black font-mono" id="billingTargetAccount">ID: --</strong>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Current Points Balance:</span>
+              <strong class="text-red-600 font-mono" id="billingPointsValue">0 Points</strong>
+            </div>
+          </div>
+          <div id="rechargeRawOutput" class="text-xs text-slate-200 font-mono bg-slate-900 p-3 rounded-lg max-h-48 overflow-auto">
+            Checking status...
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= 4. MAP MODAL & ROTATIONAL PLAYBACK ================= -->
+  <div id="vehicleMapModal" class="modal-backdrop-fixed hidden">
+    <div class="modal-sheet-card max-w-6xl h-[92vh]">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white font-bold" id="mapModalIconBox">
+            <i class="fa-solid fa-truck"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm sm:text-base font-black text-slate-900" id="mapModalVehicleTitle">Vehicle Name</h2>
+              <span id="mapModalStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase">Status</span>
+            </div>
+            <p class="text-[11px] text-slate-500 font-mono" id="mapModalImeiSubtitle">IMEI: --</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div class="text-right hidden sm:block">
+            <span class="text-xs font-bold text-slate-800" id="mapModalSpeedText">0 km/h</span>
+            <span class="text-slate-400 mx-1">|</span>
+            <span class="text-xs text-slate-500" id="mapModalIgnitionText">Ignition: OFF</span>
+          </div>
+          <button onclick="closeVehicleMapModal()" class="text-slate-400 hover:text-slate-700 text-lg p-1">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 w-full relative bg-slate-100 min-h-0">
+        <div id="modalLeafletMap" class="w-full h-full"></div>
+
+        <div class="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-4 py-2.5 rounded-xl shadow-lg border border-slate-200 max-w-sm sm:max-w-md">
+          <div class="flex items-start gap-2">
+            <i class="fa-solid fa-location-dot text-red-600 mt-1 text-xs"></i>
+            <div>
+              <p class="text-[10px] uppercase font-bold text-slate-400">Current Position</p>
+              <p class="text-xs font-medium text-slate-800 leading-snug" id="mapModalAddressText">Resolving coordinates...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col gap-2.5 flex-shrink-0">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2 font-bold text-slate-800">
+            <i class="fa-solid fa-clock-rotate-left text-red-600"></i>
+            <span>Route Playback</span>
+            <span id="playbackTimestampDisplay" class="text-[11px] font-mono font-semibold text-blue-600 ml-2">--:--:--</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1">
+              <span class="text-slate-500 font-medium text-[11px]">From:</span>
+              <input type="datetime-local" id="playbackFromTime" class="form-input text-xs py-1 px-2">
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-slate-500 font-medium text-[11px]">To:</span>
+              <input type="datetime-local" id="playbackToTime" class="form-input text-xs py-1 px-2">
+            </div>
+            <button onclick="fetchRouteHistory()" class="px-3.5 py-1.5 btn-royal-blue text-white rounded-lg font-bold transition shadow-sm">
+              Load Route
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 sm:gap-4 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 shadow-sm">
+          <button onclick="togglePlayback()" id="playbackPlayBtn" class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center hover:bg-black transition text-xs flex-shrink-0">
+            <i class="fa-solid fa-play" id="playbackPlayIcon"></i>
+          </button>
+          <input type="range" id="playbackProgress" min="0" max="100" value="0" oninput="onPlaybackSeek(this.value)" class="flex-1 accent-blue-600 h-2 bg-slate-200 rounded-lg cursor-pointer">
+          <span class="text-xs font-mono font-bold text-slate-700 min-w-[65px] text-right" id="playbackCurrentIndex">0 / 0</span>
+          <select id="playbackSpeedSelect" onchange="changePlaybackSpeed()" class="text-xs border border-slate-200 rounded px-2 py-1 bg-white font-semibold flex-shrink-0">
+            <option value="1">1x Speed</option>
+            <option value="2" selected>2x Speed</option>
+            <option value="5">5x Speed</option>
+            <option value="10">10x Speed</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 5. ENHANCED HARDWARE COMMAND MODAL ================= -->
+  <div id="commandModal" class="modal-backdrop-fixed hidden">
+    <div class="modal-sheet-card max-w-lg">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white flex-shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center text-sm">
+            <i class="fa-solid fa-terminal"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-black">Dispatch Hardware Command</h3>
+            <p class="text-[11px] text-slate-500 font-mono" id="cmdTargetTitle">Target: --</p>
+          </div>
+        </div>
+        <button onclick="closeCommandModal()" class="text-slate-400 hover:text-black">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form onsubmit="dispatchCommandSubmit(event)" class="p-5 space-y-4 overflow-y-auto custom-scroll">
+        <input type="hidden" id="cmdDeviceId">
+
+        <!-- Live Vehicle Diagnostics Strip -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-400" id="cmdModalDeviceStatusDot"></span>
+            <span class="font-bold text-slate-800" id="cmdModalDeviceStatusText">Checking Status...</span>
+          </div>
+          <div class="text-right text-[11px] font-mono text-slate-500">
+            <span id="cmdModalDeviceLastSeen">Last seen: --</span>
+          </div>
+        </div>
+
+        <!-- Dynamic Action Buttons -->
+        <div class="space-y-1.5" id="cmdQuickButtonsContainer">
+          <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">One-Click Hardware Actions</label>
+          <div class="grid grid-cols-2 gap-2" id="cmdQuickButtonsGrid">
+            <button type="button" onclick="executeQuickCommand('engineStop')" class="py-2.5 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs flex items-center justify-center gap-2 transition">
+              <i class="fa-solid fa-power-off"></i> Engine OFF (Cut)
+            </button>
+            <button type="button" onclick="executeQuickCommand('engineResume')" class="py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center justify-center gap-2 transition">
+              <i class="fa-solid fa-bolt"></i> Engine ON (Restore)
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-slate-700 block mb-1">Command Action Type</label>
+          <select id="cmdTypeSelect" onchange="onCmdTypeChange()" class="w-full form-input bg-white font-medium"></select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="cmdAdvancedAttributesBox">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Device Password</label>
+            <input type="text" id="cmdDevicePassword" value="123456" placeholder="Default: 123456" class="w-full form-input font-mono">
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Transmission Channel</label>
+            <select id="cmdTextChannelSelect" class="w-full form-input bg-white font-medium">
+              <option value="false">Data / GPRS Socket (Default)</option>
+              <option value="true">SMS Channel (Text)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="cmdCustomDataBox" class="space-y-1">
+          <label class="text-xs font-bold text-slate-700 block">Command String Payload</label>
+          <input type="text" id="cmdCustomString" placeholder="e.g. RELAY,1# or STATUS#" class="w-full form-input font-mono">
+        </div>
+
+        <!-- Feedback & Queue Alert Box -->
+        <div id="cmdFeedbackBox" class="p-3 rounded-lg text-xs hidden"></div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="closeCommandModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Cancel</button>
+          <button type="submit" id="cmdSendBtn" class="px-5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition shadow-sm flex items-center gap-1.5">
+            <i class="fa-solid fa-paper-plane text-xs"></i>
+            <span>Send Command</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 6. DEVICE FORM MODAL ================= -->
+  <div id="deviceModal" class="modal-backdrop-fixed hidden">
+    <div class="modal-sheet-card max-w-4xl">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-truck text-red-600 text-sm"></i>
+          <h2 class="text-base font-black text-slate-900" id="deviceModalTitle">Device Details</h2>
+        </div>
+        <button onclick="closeDeviceModal()" class="text-slate-400 hover:text-slate-700">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto custom-scroll flex-1 space-y-4 bg-slate-50/50">
+        <input type="hidden" id="devModalId">
+
+        <div class="form-card p-4 sm:p-5 space-y-4">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-700 block border-b border-slate-100 pb-2">Hardware & Vehicle Specifications</span>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Vehicle Number *</label>
+              <input type="text" id="devModalName" required placeholder="BR01KG9701" class="w-full form-input font-bold uppercase">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">IMEI Number *</label>
+              <input type="text" id="devModalUniqueId" required placeholder="862607228002708" class="w-full form-input font-mono">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Device SIM Number</label>
+              <input type="text" id="devModalPhone" placeholder="5754029176211" class="w-full form-input font-mono">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Device Model</label>
+              <select id="devModalModel" class="w-full form-input bg-white font-medium"></select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Fleet Group</label>
+              <select id="devModalGroup" class="w-full form-input bg-white font-medium">
+                <option value="0">None</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Driver Contact Number</label>
+              <input type="text" id="devModalContact" placeholder="9135880117" class="w-full form-input font-mono">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Vehicle Category</label>
+              <select id="devModalCategory" class="w-full form-input bg-white capitalize font-medium"></select>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Device Expiration Date</label>
+              <div class="flex items-center gap-2">
+                <input type="date" id="devModalExpiryDate" class="w-full form-input font-mono text-xs">
+                <button type="button" onclick="document.getElementById('devModalExpiryDate').value=''" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg uppercase">
+                  CLEAR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time User Connections Section -->
+        <div class="form-card p-4 sm:p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-700 block">User Access Connections</span>
+              <span class="text-[11px] text-slate-500">Only assigned accounts can view or control this device</span>
+            </div>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200" id="devConnectedUserCountBadge">0 Connected</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Connected Users List -->
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-700 block">Connected User Accounts</label>
+              <div class="flex flex-wrap items-center gap-1.5 p-2.5 border border-slate-200 rounded-lg min-h-[50px] bg-slate-50 max-h-40 overflow-y-auto custom-scroll" id="devAssignedUsersChips">
+                <span class="text-xs text-slate-400">No users connected to this vehicle</span>
+              </div>
+            </div>
+
+            <!-- Available Users -->
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-700 block">Available Users (Search & Connect)</label>
+              <div class="space-y-2">
+                <div class="relative">
+                  <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-400 text-xs"></i>
+                  <input type="text" id="devUserSearchInput" oninput="filterDevUserOptions()" placeholder="Search available users by name/phone..." class="w-full form-input pl-7 text-xs py-1.5 bg-white">
+                </div>
+                <div class="flex items-center gap-2">
+                  <select id="devUserAddSelect" class="w-full form-input text-xs py-1.5 bg-white font-medium">
+                    <option value="">Select User to Link...</option>
+                  </select>
+                  <button type="button" onclick="addSelectedUserToDevice()" class="px-4 py-1.5 btn-royal-blue text-white rounded-lg text-xs font-bold whitespace-nowrap shadow-sm">
+                    + Link
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Geofences Linking -->
+          <div class="pt-3 border-t border-slate-100">
+            <label class="text-xs font-semibold text-slate-700 block mb-1">Linked Geofences (Containment Zones)</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="flex flex-wrap items-center gap-1.5 p-2.5 border border-slate-200 rounded-lg min-h-[46px] bg-slate-50 max-h-36 overflow-y-auto custom-scroll" id="devLinkedGeofenceChips">
+                <span class="text-xs text-slate-400">No boundaries active</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <select id="devGeofenceAddSelect" class="w-full form-input text-xs py-1.5 bg-white font-medium">
+                  <option value="">+ Select Geofence to Add...</option>
+                </select>
+                <button type="button" onclick="addSelectedGeofenceToDevice()" class="px-4 py-1.5 btn-royal-blue text-white rounded-lg text-xs font-bold whitespace-nowrap shadow-sm">
+                  + Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-card p-4 sm:p-5 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Custom Attributes & Speed Limits</span>
+            <button type="button" onclick="addDeviceAttributeRow()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[10px]"></i> Add Field
+            </button>
+          </div>
+          <div class="space-y-2" id="devAttributesContainer"></div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3.5 border-t border-slate-200 bg-white flex items-center justify-end gap-3 flex-shrink-0">
+        <button type="button" onclick="closeDeviceModal()" class="px-5 py-2 rounded-lg text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 uppercase">
+          Cancel
+        </button>
+        <button type="button" onclick="saveDeviceForm()" id="devModalSaveBtn" class="px-6 py-2 btn-royal-blue text-white rounded-lg text-xs font-bold uppercase flex items-center gap-2 shadow-md">
+          <i class="fa-solid fa-floppy-disk"></i> Save Device
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 7. USER FORM MODAL ================= -->
+  <div id="userModal" class="modal-backdrop-fixed hidden">
+    <div class="modal-sheet-card max-w-4xl">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-user-gear text-red-600 text-sm"></i>
+          <h2 class="text-base font-black text-slate-900" id="userModalTitle">User Details</h2>
+        </div>
+        <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-700">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto custom-scroll flex-1 space-y-4 bg-slate-50/50">
+        <input type="hidden" id="userModalId">
+
+        <div class="form-card p-4 sm:p-5 space-y-4">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-700 block border-b border-slate-100 pb-2">User Profile & Access Credentials</span>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+            <div class="md:col-span-2">
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Customer / Company Name *</label>
+              <input type="text" id="userModalName" required placeholder="Nikhil Kumar" class="w-full form-input font-bold">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Username * (Alphanumeric)</label>
+              <input type="text" id="userModalEmail" required placeholder="nikhil6118" class="w-full form-input font-mono">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Password</label>
+              <div class="relative">
+                <input type="password" id="userModalPassword" placeholder="••••••••" class="w-full form-input pr-9">
+                <button type="button" onclick="togglePasswordVisibility('userModalPassword')" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                  <i class="fa-regular fa-eye-slash" id="userModalPasswordEye"></i>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Customer Mobile Number</label>
+              <input type="text" id="userModalPhone" placeholder="8240268590" class="w-full form-input font-mono">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-600 block mb-1">Device Quota Limit</label>
+              <input type="number" id="userModalDeviceLimit" value="10" class="w-full form-input font-mono font-bold">
+            </div>
+            <div class="md:col-span-2 flex items-center gap-3 pt-4">
+              <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                <input type="checkbox" id="userModalAdminCheck" class="w-4 h-4 rounded text-blue-600 accent-blue-600">
+                <span>Administrator Permissions</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-card p-4 sm:p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Vehicle Assignments & Alert Triggers</span>
+            <span class="text-[11px] text-slate-400">Configure device visibility and notification subscriptions</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Vehicle Assignments -->
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-600 block">Assigned Fleet Vehicles</label>
+              <div class="flex flex-wrap items-center gap-1.5 p-2.5 border border-slate-200 rounded-lg min-h-[48px] bg-slate-50 max-h-36 overflow-y-auto custom-scroll" id="userDeviceChipsContainer">
+                <span class="text-xs text-slate-400">No vehicles linked</span>
+              </div>
+              <div class="flex items-center gap-2 pt-1">
+                <select id="userDeviceAddSelect" class="w-full form-input text-xs py-1.5 bg-white font-medium">
+                  <option value="">+ Select Vehicle to Assign...</option>
+                </select>
+                <button type="button" onclick="addSelectedDeviceToUser()" class="px-4 py-1.5 btn-royal-blue text-white rounded-lg text-xs font-bold whitespace-nowrap">
+                  Assign
+                </button>
+              </div>
+            </div>
+
+            <!-- Notifications Selection -->
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-600 block">Notification Events</label>
+              <div class="flex flex-wrap items-center gap-1.5 p-2.5 border border-slate-200 rounded-lg min-h-[48px] bg-slate-50 max-h-36 overflow-y-auto custom-scroll" id="userNotificationsChipsContainer">
+                <span class="text-xs text-slate-400">No alerts subscribed</span>
+              </div>
+              <div class="flex items-center gap-2 pt-1">
+                <select id="userNotificationAddSelect" class="w-full form-input text-xs py-1.5 bg-white font-medium">
+                  <option value="">+ Add Event Alert...</option>
+                </select>
+                <button type="button" onclick="addSelectedNotificationToUser()" class="px-4 py-1.5 btn-royal-blue text-white rounded-lg text-xs font-bold whitespace-nowrap">
+                  Add Alert
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-card p-4 sm:p-5 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Account Preferences</span>
+            <button type="button" onclick="addUserAttributeRow()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[10px]"></i> Add Field
+            </button>
+          </div>
+          <div class="space-y-2" id="userAttributesContainer"></div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3.5 border-t border-slate-200 bg-white flex items-center justify-end gap-3 flex-shrink-0">
+        <button type="button" onclick="closeUserModal()" class="px-5 py-2 rounded-lg text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 uppercase">
+          Cancel
+        </button>
+        <button type="button" onclick="saveUserForm()" id="userModalSaveBtn" class="px-6 py-2 btn-royal-blue text-white rounded-lg text-xs font-bold uppercase flex items-center gap-2 shadow-md">
+          <i class="fa-solid fa-floppy-disk"></i> Save Profile
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 8. TOAST NOTIFICATION ================= -->
+  <div id="toastMessage" class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2 pointer-events-none opacity-0 translate-y-2 transition-all duration-300">
+    <i class="fa-solid fa-circle-check text-emerald-400" id="toastIcon"></i>
+    <span id="toastText">Action completed</span>
+  </div>
+
+  <!-- ================= 9. CORE JAVASCRIPT LOGIC ================= -->
+  <script>
+    let currentAdmin = null;
+    let telemetryList = [];
+    let allDevices = [];
+    let allUsers = [];
+    let allGroups = [];
+    let allGeofences = [];
+    let currentTab = 'fleet';
+    let localSocket = null;
+    let pollingTimer = null;
+
+    let dynamicModels = [];
+    let dynamicCategories = [];
+    let dynamicNotifications = [];
+    let dynamicNotificationTypes = [];
+
+    let fleetCurrentFilter = 'ALL';
+    let fleetSearchTerm = '';
+    let fleetFilteredList = [];
+    let fleetCurrentPage = 1;
+    let fleetPageSize = 10;
+
+    let devCurrentPage = 1;
+    let devPageSize = 10;
+    let devFilteredList = [];
+
+    let userCurrentPage = 1;
+    let userPageSize = 10;
+    let userFilteredList = [];
+
+    let activeDevLinkedUserIds = [];
+    let activeDevLinkedGeofenceIds = [];
+    let activeUserLinkedDeviceIds = [];
+    let activeUserLinkedNotificationTypes = [];
+    let activeDeviceCommandTemplates = [];
+
+    let modalMap = null;
+    let modalVehicleMarker = null;
+    let routePolyline = null;
+    let progressPolyline = null;
+    let historyCoordinates = [];
+    let playbackIndex = 0;
+    let isPlaying = false;
+    let playbackInterval = null;
+    let playbackSpeed = 2;
+    let activeMapDevice = null;
+
+    const KNOTS_TO_KMH = 1.852;
+
+    const EVENT_TYPE_DICTIONARY = {
+      deviceOnline: 'Device Online (Active)',
+      deviceOffline: 'Device Offline (No Signal)',
+      deviceMoving: 'Vehicle Moving',
+      deviceStopped: 'Vehicle Stopped',
+      deviceOverspeed: 'Overspeed Alert',
+      ignitionOn: 'Ignition Turned ON',
+      ignitionOff: 'Ignition Turned OFF',
+      geofenceEnter: 'Geofence Entered',
+      geofenceExit: 'Geofence Exited',
+      alarm: 'SOS / Emergency Alarm',
+      commandResult: 'Command Acknowledged'
+    };
+
+    function getHaversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLon = ((lon2 - lon1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function calculateBearing(lat1, lon1, lat2, lon2) {
+      const toRad = deg => (deg * Math.PI) / 180;
+      const toDeg = rad => (rad * 180) / Math.PI;
+
+      const φ1 = toRad(lat1);
+      const φ2 = toRad(lat2);
+      const Δλ = toRad(lon2 - lon1);
+
+      const y = Math.sin(Δλ) * Math.cos(φ2);
+      const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+      const θ = Math.atan2(y, x);
+
+      return (toDeg(θ) + 360) % 360;
+    }
+
+    function degreesToCompass(deg) {
+      if (deg === undefined || deg === null || isNaN(deg)) return 'N/A';
+      const val = Math.floor((deg / 22.5) + 0.5);
+      const compassArr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+      return compassArr[(val % 16)];
+    }
+
+    function showGlobalLoader(msg = 'Synchronizing...') {
+      const loader = document.getElementById('globalLoader');
+      document.getElementById('globalLoaderText').innerText = msg;
+      loader.classList.remove('hidden');
+    }
+
+    function hideGlobalLoader() {
+      document.getElementById('globalLoader').classList.add('hidden');
+    }
+
+    function getVehicleIconClass(category = '', model = '') {
+      const cat = (category || '').toLowerCase();
+      const mod = (model || '').toLowerCase();
+
+      if (cat.includes('truck') || mod.includes('truck') || cat.includes('dumper')) return 'fa-truck';
+      if (cat.includes('motorcycle') || cat.includes('bike') || cat.includes('scooter')) return 'fa-motorcycle';
+      if (cat.includes('bus') || mod.includes('bus')) return 'fa-bus';
+      if (cat.includes('van')) return 'fa-van-shuttle';
+      if (cat.includes('pickup')) return 'fa-truck-pickup';
+      if (cat.includes('tractor') || cat.includes('crane')) return 'fa-tractor';
+      return 'fa-car';
+    }
+
+    // 1. Navigation Tab Router
+    function switchTab(tabId) {
+      currentTab = tabId;
+      ['fleet', 'devices', 'users', 'reports', 'geofences', 'system'].forEach(t => {
+        const sec = document.getElementById(`section-${t}`);
+        const btn = document.getElementById(`nav-${t}`);
+        const mBtn = document.getElementById(`m-nav-${t}`);
+        if (t === tabId) {
+          sec.classList.remove('hidden');
+          if (btn) {
+            btn.classList.add('active');
+            btn.classList.remove('text-slate-600');
+          }
+          if (mBtn) mBtn.className = 'px-2.5 py-1.5 rounded-lg bg-slate-900 text-white';
+        } else {
+          sec.classList.add('hidden');
+          if (btn) {
+            btn.classList.remove('active');
+            btn.classList.add('text-slate-600');
+          }
+          if (mBtn) mBtn.className = 'px-2.5 py-1.5 rounded-lg text-slate-600';
+        }
+      });
+
+      if (tabId === 'fleet') {
+        sanitizeSearchInput();
+        loadTelemetryFeed();
+      }
+      if (tabId === 'devices') loadDevices();
+      if (tabId === 'users') loadUsers();
+      if (tabId === 'reports') initReportsTab();
+      if (tabId === 'geofences') loadGeofencesAndGroups();
+      if (tabId === 'system') loadPortsAndRecharge();
+    }
+
+    function refreshCurrentTab() {
+      const spin = document.getElementById('syncIcon');
+      spin.classList.add('fa-spin');
+      if (currentTab === 'fleet') loadTelemetryFeed();
+      if (currentTab === 'devices') loadDevices();
+      if (currentTab === 'users') loadUsers();
+      if (currentTab === 'reports') generateReportQuery();
+      if (currentTab === 'geofences') loadGeofencesAndGroups();
+      if (currentTab === 'system') loadPortsAndRecharge();
+      setTimeout(() => spin.classList.remove('fa-spin'), 600);
+    }
+
+    // 2. Auth Session Management
+    async function checkAuthSession() {
+      try {
+        const res = await fetch('/api/session');
+        if (res.ok) {
+          currentAdmin = await res.json();
+          onAuthenticated();
+        } else {
+          showAuthScreen();
+        }
+      } catch (e) {
+        showAuthScreen();
+      }
+    }
+
+    function showAuthScreen() {
+      document.getElementById('authScreen').classList.remove('hidden');
+      if (pollingTimer) clearInterval(pollingTimer);
+    }
+
+    function hideAuthScreen() {
+      document.getElementById('authScreen').classList.add('hidden');
+    }
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+      const btn = document.getElementById('loginBtn');
+      const errEl = document.getElementById('authErrorMsg');
+
+      btn.innerText = 'Verifying...';
+      errEl.classList.add('hidden');
+      showGlobalLoader('Authenticating Credentials...');
+
+      try {
+        const res = await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (res.ok) {
+          currentAdmin = await res.json();
+          onAuthenticated();
+          showToast('Welcome, ' + (currentAdmin.name || currentAdmin.username));
+        } else {
+          const err = await res.json().catch(() => ({}));
+          errEl.innerText = err.error || 'Authentication denied. Verify credentials.';
+          errEl.classList.remove('hidden');
+        }
+      } catch (ex) {
+        errEl.innerText = 'Unable to establish connection to engine server';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i><span>Sign In to Fleet Control</span>';
+        hideGlobalLoader();
+      }
+    }
+
+    async function handleUserLogout() {
+      showGlobalLoader('Closing session...');
+      try {
+        await fetch('/api/session', { method: 'DELETE' });
+      } catch (e) {}
+      currentAdmin = null;
+      if (localSocket) localSocket.close();
+      if (pollingTimer) clearInterval(pollingTimer);
+      hideGlobalLoader();
+      showAuthScreen();
+      showToast('Logged out successfully');
+    }
+
+    function sanitizeSearchInput() {
+      const searchBox = document.getElementById('fleetSearchInput');
+      if (searchBox) {
+        const val = (searchBox.value || '').trim().toLowerCase();
+        if (val === 'abstracker' || (currentAdmin && val === (currentAdmin.username || '').toLowerCase())) {
+          searchBox.value = '';
+          fleetSearchTerm = '';
+        }
+      }
+    }
+
+    function onAuthenticated() {
+      hideAuthScreen();
+      sanitizeSearchInput();
+
+      document.getElementById('topUserName').innerText = currentAdmin.name || currentAdmin.username || 'Administrator';
+      document.getElementById('billingTargetAccount').innerText = `ID: ${currentAdmin.id} (${currentAdmin.name || currentAdmin.username})`;
+      document.getElementById('billingPointsValue').innerText = `${currentAdmin.devicePoints ?? 0} Points`;
+
+      loadTelemetryFeed();
+      fetchDynamicMetadata();
+      loadAuxiliaryData();
+      connectWebSocket();
+
+      setTimeout(sanitizeSearchInput, 400);
+
+      if (pollingTimer) clearInterval(pollingTimer);
+      pollingTimer = setInterval(() => {
+        if (currentTab === 'fleet') loadTelemetryFeed();
+      }, 5000);
+    }
+
+    async function fetchDynamicMetadata() {
+      try {
+        const res = await fetch('/api/custom/metadata');
+        if (res.ok) {
+          const data = await res.json();
+          dynamicModels = data.models || [];
+          dynamicCategories = data.categories || [];
+          dynamicNotifications = data.notifications || [];
+          dynamicNotificationTypes = data.notificationTypes || [];
+        }
+      } catch (e) {}
+    }
+
+    async function loadAuxiliaryData() {
+      try {
+        const [grpRes, geoRes, devRes, usrRes] = await Promise.all([
+          fetch('/api/groups'),
+          fetch('/api/geofences'),
+          fetch('/api/devices'),
+          fetch('/api/users')
+        ]);
+        if (grpRes.ok) allGroups = await grpRes.json();
+        if (geoRes.ok) allGeofences = await geoRes.json();
+        if (devRes.ok) {
+          allDevices = await devRes.json();
+          populateReportsDeviceDropdown();
+        }
+        if (usrRes.ok) allUsers = await usrRes.json();
+      } catch (e) {}
+    }
+
+    // 3. Telemetry Stream & Fleet Grid Engine
+    async function loadTelemetryFeed() {
+      try {
+        const userId = currentAdmin?.id || '99686';
+        const res = await fetch(`/api/users/${userId}/userDevicesState?pieChartOnly=false`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        document.getElementById('kpiTotal').innerText = data.totalDevices?.count ?? 0;
+        document.getElementById('kpiRunning').innerText = data.running?.count ?? 0;
+        document.getElementById('kpiStopped').innerText = data.stopped?.count ?? 0;
+        document.getElementById('kpiOffline').innerText = (data.inactive?.count ?? 0) + (data.noData?.count ?? 0);
+
+        telemetryList = data.deviceCumPositionList || [];
+        applyFleetFiltersAndPagination();
+      } catch (err) {
+        console.error('Telemetry fetch error:', err);
+      }
+    }
+
+    function setFleetFilter(filter) {
+      fleetCurrentFilter = filter;
+      ['ALL', 'RUNNING', 'STOPPED', 'OFFLINE'].forEach(f => {
+        const btn = document.getElementById(`fleetFilter-${f}`);
+        if (f === filter) {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white transition';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+        }
+      });
+      fleetCurrentPage = 1;
+      applyFleetFiltersAndPagination();
+    }
+
+    function onFleetSearchChange() {
+      const searchBox = document.getElementById('fleetSearchInput');
+      const val = (searchBox?.value || '').trim();
+
+      if (val.toLowerCase() === 'abstracker') {
+        searchBox.value = '';
+        fleetSearchTerm = '';
+      } else {
+        fleetSearchTerm = val.toLowerCase();
+      }
+
+      fleetCurrentPage = 1;
+      applyFleetFiltersAndPagination();
+    }
+
+    function clearFleetSearch() {
+      const input = document.getElementById('fleetSearchInput');
+      if (input) input.value = '';
+      fleetSearchTerm = '';
+      fleetCurrentPage = 1;
+      applyFleetFiltersAndPagination();
+    }
+
+    function onFleetPageSizeChange() {
+      fleetPageSize = parseInt(document.getElementById('fleetPageSize').value) || 10;
+      fleetCurrentPage = 1;
+      applyFleetFiltersAndPagination();
+    }
+
+    function applyFleetFiltersAndPagination() {
+      sanitizeSearchInput();
+
+      fleetFilteredList = telemetryList.filter(item => {
+        const d = item.device || {};
+        const p = item.position || {};
+        const status = (p.attributes?.currentStatus || d.status || 'OFFLINE').toUpperCase();
+
+        if (fleetCurrentFilter === 'RUNNING' && status !== 'RUNNING') return false;
+        if (fleetCurrentFilter === 'STOPPED' && status !== 'STOPPED') return false;
+        if (fleetCurrentFilter === 'OFFLINE' && status === 'RUNNING') return false;
+
+        if (fleetSearchTerm) {
+          const matchName = d.name && d.name.toLowerCase().includes(fleetSearchTerm);
+          const matchImei = d.uniqueId && d.uniqueId.includes(fleetSearchTerm);
+          const matchAddress = p.address && p.address.toLowerCase().includes(fleetSearchTerm);
+          const matchDriver = d.attributes?.driverName && d.attributes.driverName.toLowerCase().includes(fleetSearchTerm);
+          return matchName || matchImei || matchAddress || matchDriver;
+        }
+        return true;
+      });
+
+      renderFleetTable();
+    }
+
+    function renderFleetTable() {
+      const tbody = document.getElementById('fleetTableBody');
+      const totalUnits = fleetFilteredList.length;
+      document.getElementById('fleetTotalUnitsCount').innerText = totalUnits;
+
+      if (totalUnits === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-12 text-slate-400">No matching fleet vehicles found</td></tr>`;
+        renderFleetPaginationControls(0);
+        return;
+      }
+
+      const start = (fleetCurrentPage - 1) * fleetPageSize;
+      const pageItems = fleetFilteredList.slice(start, start + fleetPageSize);
+
+      tbody.innerHTML = pageItems.map(item => {
+        const d = item.device || {};
+        const p = item.position || {};
+        const attr = p.attributes || {};
+        const status = (attr.currentStatus || d.status || 'OFFLINE').toUpperCase();
+        
+        const rawSpeed = p.speed ? Number(p.speed) : 0;
+        const speedKmh = Math.round(rawSpeed * KNOTS_TO_KMH);
+
+        const ign = attr.ignition ? '<span class="text-emerald-600 font-bold">ON</span>' : '<span class="text-slate-400 font-bold">OFF</span>';
+        const dist = attr.todayDistance ? (attr.todayDistance / 1000).toFixed(2) + ' km' : '0.00 km';
+        const driver = d.attributes?.driverName ? `${d.attributes.driverName} (${d.contact || ''})` : (d.contact || 'None');
+        const address = p.address || 'Resolving location coordinates...';
+        const lastSeen = d.lastUpdate ? new Date(d.lastUpdate).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }) : 'N/A';
+
+        const vehicleIcon = getVehicleIconClass(d.category, d.model);
+
+        let badgeColor = 'bg-slate-100 text-slate-600';
+        let dotColor = 'bg-slate-400';
+        if (status === 'RUNNING') { badgeColor = 'bg-emerald-50 text-emerald-700'; dotColor = 'bg-emerald-500'; }
+        if (status === 'STOPPED') { badgeColor = 'bg-amber-50 text-amber-700'; dotColor = 'bg-amber-500'; }
+        if (status === 'OFFLINE') { badgeColor = 'bg-red-50 text-red-700'; dotColor = 'bg-red-500'; }
+
+        return `
+          <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openVehicleMapModal(${d.id})">
+            <td class="px-4 py-3" onclick="event.stopPropagation(); openVehicleMapModal(${d.id})">
+              <div class="font-bold text-black hover:text-blue-600 transition flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 text-xs">
+                  <i class="fa-solid ${vehicleIcon}"></i>
+                </div>
+                <span>${d.name || 'Unnamed'}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 pl-9">${d.model || 'G11 (5023)'} • <span class="capitalize">${d.category || 'Car'}</span></div>
+            </td>
+            <td class="px-4 py-3 font-mono text-slate-600">
+              <div>${d.uniqueId}</div>
+              <div class="text-[10px] text-slate-400">${d.phone || '--'}</div>
+            </td>
+            <td class="px-4 py-3 text-slate-600">${driver}</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor}">
+                <span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+                ${status}
+              </span>
+            </td>
+            <td class="px-4 py-3 font-mono font-bold text-black">${speedKmh} km/h</td>
+            <td class="px-4 py-3">${ign}</td>
+            <td class="px-4 py-3 font-mono font-bold">${dist}</td>
+            <td class="px-4 py-3 max-w-xs truncate text-slate-600" title="${address}">
+              <i class="fa-solid fa-location-dot text-[10px] text-red-500 mr-1"></i>${address}
+            </td>
+            <td class="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">${lastSeen}</td>
+            <td class="px-4 py-3 text-right space-x-1 whitespace-nowrap" onclick="event.stopPropagation()">
+              <button onclick="openVehicleMapModal(${d.id})" title="Live Track & Playback" class="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition">
+                <i class="fa-solid fa-map"></i> Track
+              </button>
+              <button onclick="openCommandModal(${d.id}, '${d.name}')" title="Dispatch Command" class="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition">
+                <i class="fa-solid fa-bolt"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      renderFleetPaginationControls(totalUnits);
+    }
+
+    function renderFleetPaginationControls(total) {
+      const container = document.getElementById('fleetPaginationControls');
+      const totalPages = Math.ceil(total / fleetPageSize) || 1;
+
+      let html = `
+        <button onclick="changeFleetPage(${fleetCurrentPage - 1})" ${fleetCurrentPage <= 1 ? 'disabled' : ''} class="px-2.5 py-1 border border-slate-200 rounded text-xs font-bold ${fleetCurrentPage <= 1 ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-200 bg-white'}">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      `;
+
+      for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= fleetCurrentPage - 1 && p <= fleetCurrentPage + 1)) {
+          html += `
+            <button onclick="changeFleetPage(${p})" class="px-2.5 py-1 border rounded text-xs font-bold ${p === fleetCurrentPage ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 bg-white hover:bg-slate-100'}">
+              ${p}
+            </button>
+          `;
+        } else if (p === fleetCurrentPage - 2 || p === fleetCurrentPage + 2) {
+          html += `<span class="px-1 text-slate-400">...</span>`;
+        }
+      }
+
+      html += `
+        <button onclick="changeFleetPage(${fleetCurrentPage + 1})" ${fleetCurrentPage >= totalPages ? 'disabled' : ''} class="px-2.5 py-1 border border-slate-200 rounded text-xs font-bold ${fleetCurrentPage >= totalPages ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-200 bg-white'}">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      `;
+
+      container.innerHTML = html;
+    }
+
+    function changeFleetPage(page) {
+      const totalPages = Math.ceil(fleetFilteredList.length / fleetPageSize);
+      if (page >= 1 && page <= totalPages) {
+        fleetCurrentPage = page;
+        renderFleetTable();
+      }
+    }
+
+    // 4. Ultra-Detailed Keyless Map Engine (Carto Voyager, Esri Satellite HD, OSM)
+    function initOpenSourceMap(initialLat = 24.6754, initialLng = 84.5358) {
+      if (modalMap) return;
+
+      const maptilerStreets = L.tileLayer('https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=UFzZhhOMgEjhPErFufnk', {
+        attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
+        maxZoom: 20
+      });
+
+      const maptilerSatellite = L.tileLayer('https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg?key=UFzZhhOMgEjhPErFufnk', {
+        attribution: '&copy; MapTiler',
+        maxZoom: 20
+      });
+
+      const travelTimeLayer = L.tileLayer('https://tiles.traveltimeapp.com/osm-bright/{z}/{x}/{y}.png?key=4b4350ea', {
+        attribution: '&copy; TravelTime &copy; OpenStreetMap',
+        maxZoom: 19
+      });
+
+      const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri, HERE, Garmin',
+        maxZoom: 20
+      });
+
+      const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri, Maxar, Earthstar',
+        maxZoom: 19
+      });
+
+      const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      });
+
+      modalMap = L.map('modalLeafletMap', { 
+        zoomControl: true,
+        layers: [maptilerStreets]
+      }).setView([initialLat, initialLng], 15);
+
+      const baseMaps = {
+        "🗺️ MapTiler Streets HD": maptilerStreets,
+        "🛰️ MapTiler Satellite HD": maptilerSatellite,
+        "🚗 TravelTime HD (Roads & Places)": travelTimeLayer,
+        "🏙️ Google Streets HD (Esri)": esriStreets,
+        "🌍 OpenStreetMap Atlas": osmStandard
+      };
+
+      L.control.layers(baseMaps, null, { position: 'topright' }).addTo(modalMap);
+    }
+
+    function createDirectionalVehicleIcon(bearing = 0, color = '#2563eb', label = '') {
+      return L.divIcon({
+        className: 'vehicle-div-icon',
+        html: `
+          <div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; position: relative;">
+            <div style="transform: rotate(${Math.round(bearing)}deg); transition: transform 0.12s linear; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+              <svg width="34" height="34" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="18" cy="18" r="15" fill="${color}" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0px 2px 5px rgba(0,0,0,0.35))"/>
+                <path d="M18 7L24 23L18 19.5L12 23L18 7Z" fill="#ffffff"/>
+              </svg>
+            </div>
+            ${label ? `<div style="position: absolute; bottom: -16px; background: #09090b; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.4);">${label}</div>` : ''}
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+    }
+
+    function openVehicleMapModal(deviceId) {
+      const item = telemetryList.find(i => i.device.id === deviceId);
+      if (!item) return;
+
+      activeMapDevice = item;
+      document.getElementById('vehicleMapModal').classList.remove('hidden');
+
+      const d = item.device;
+      const p = item.position || {};
+      const status = (p.attributes?.currentStatus || d.status || 'OFFLINE').toUpperCase();
+      const vehicleIcon = getVehicleIconClass(d.category, d.model);
+      const speedKmh = Math.round((p.speed || 0) * KNOTS_TO_KMH);
+
+      document.getElementById('mapModalIconBox').innerHTML = `<i class="fa-solid ${vehicleIcon}"></i>`;
+      document.getElementById('mapModalVehicleTitle').innerText = d.name;
+      document.getElementById('mapModalImeiSubtitle').innerText = `IMEI: ${d.uniqueId} | Model: ${d.model || 'G11'}`;
+      document.getElementById('mapModalSpeedText').innerText = `${speedKmh} km/h`;
+      document.getElementById('mapModalIgnitionText').innerText = `Ignition: ${p.attributes?.ignition ? 'ON' : 'OFF'}`;
+      document.getElementById('mapModalAddressText').innerText = p.address || 'Resolving coordinates...';
+      document.getElementById('playbackTimestampDisplay').innerText = '--:--:--';
+
+      const badge = document.getElementById('mapModalStatusBadge');
+      badge.innerText = status;
+      badge.className = `px-2 py-0.5 rounded text-[10px] font-bold uppercase ${status === 'RUNNING' ? 'bg-emerald-100 text-emerald-700' : (status === 'STOPPED' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}`;
+
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0);
+      document.getElementById('playbackFromTime').value = formatDateTimeInput(startOfDay);
+      document.getElementById('playbackToTime').value = formatDateTimeInput(now);
+
+      setTimeout(() => {
+        initOpenSourceMap(p.latitude || 24.6754, p.longitude || 84.5358);
+        modalMap.invalidateSize();
+
+        if (p.latitude && p.longitude) {
+          const coords = [p.latitude, p.longitude];
+          modalMap.setView(coords, 16);
+
+          const icon = createDirectionalVehicleIcon(p.course || 0, status === 'RUNNING' ? '#059669' : '#d97706', d.name);
+
+          if (modalVehicleMarker) {
+            modalVehicleMarker.setLatLng(coords);
+            modalVehicleMarker.setIcon(icon);
+          } else {
+            modalVehicleMarker = L.marker(coords, { icon }).addTo(modalMap);
+          }
+        }
+      }, 200);
+    }
+
+    function closeVehicleMapModal() {
+      document.getElementById('vehicleMapModal').classList.add('hidden');
+      stopPlayback();
+      if (routePolyline && modalMap) {
+        modalMap.removeLayer(routePolyline);
+        routePolyline = null;
+      }
+      if (progressPolyline && modalMap) {
+        modalMap.removeLayer(progressPolyline);
+        progressPolyline = null;
+      }
+    }
+
+    function formatDateTimeInput(date) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    async function fetchRouteHistory() {
+      if (!activeMapDevice) return;
+      const deviceId = activeMapDevice.device.id;
+      const fromVal = document.getElementById('playbackFromTime').value;
+      const toVal = document.getElementById('playbackToTime').value;
+
+      if (!fromVal || !toVal) {
+        alert('Please specify both From and To timestamps.');
+        return;
+      }
+
+      const fromIso = new Date(fromVal).toISOString();
+      const toIso = new Date(toVal).toISOString();
+
+      showGlobalLoader('Calculating sequential route points...');
+
+      try {
+        const res = await fetch(`/api/positions?deviceId=${deviceId}&from=${fromIso}&to=${toIso}`);
+        if (!res.ok) throw new Error('History query failed');
+
+        let positions = await res.json();
+        if (!positions || positions.length === 0) {
+          alert('No recorded movement positions found for the selected time range.');
+          return;
+        }
+
+        positions.sort((a, b) => {
+          return new Date(a.fixTime || a.deviceTime).getTime() - new Date(b.fixTime || b.deviceTime).getTime();
+        });
+
+        historyCoordinates = [];
+        let lastPt = null;
+
+        positions.forEach(p => {
+          if (!lastPt || (Math.abs(p.latitude - lastPt.lat) > 0.00002 || Math.abs(p.longitude - lastPt.lng) > 0.00002)) {
+            const pt = {
+              lat: Number(p.latitude),
+              lng: Number(p.longitude),
+              speed: Math.round(Number(p.speed || 0) * (p.speedKmh ? 1 : KNOTS_TO_KMH)),
+              course: p.course || 0,
+              time: p.formattedTime || p.deviceTime || p.fixTime
+            };
+            historyCoordinates.push(pt);
+            lastPt = pt;
+          }
+        });
+
+        if (routePolyline && modalMap) modalMap.removeLayer(routePolyline);
+        if (progressPolyline && modalMap) modalMap.removeLayer(progressPolyline);
+
+        const latLngs = historyCoordinates.map(c => [c.lat, c.lng]);
+        routePolyline = L.polyline(latLngs, {
+          color: '#3b82f6',
+          weight: 4,
+          opacity: 0.8,
+          lineJoin: 'round'
+        }).addTo(modalMap);
+
+        progressPolyline = L.polyline([], {
+          color: '#10b981',
+          weight: 5,
+          opacity: 0.95,
+          lineJoin: 'round'
+        }).addTo(modalMap);
+
+        modalMap.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+
+        playbackIndex = 0;
+        document.getElementById('playbackProgress').max = historyCoordinates.length - 1;
+        document.getElementById('playbackProgress').value = 0;
+        document.getElementById('playbackCurrentIndex').innerText = `1 / ${historyCoordinates.length}`;
+
+        updatePlaybackMarker();
+        showToast(`Loaded ${historyCoordinates.length} route coordinates`);
+      } catch (err) {
+        alert('Unable to load route points from engine');
+      } finally {
+        hideGlobalLoader();
+      }
+    }
+
+    function togglePlayback() {
+      if (!historyCoordinates || historyCoordinates.length === 0) {
+        alert('Please load route coordinates first.');
+        return;
+      }
+
+      if (isPlaying) {
+        pausePlayback();
+      } else {
+        startPlayback();
+      }
+    }
+
+    function startPlayback() {
+      isPlaying = true;
+      document.getElementById('playbackPlayIcon').className = 'fa-solid fa-pause';
+      clearInterval(playbackInterval);
+
+      const speedInterval = Math.max(25, 300 / playbackSpeed);
+
+      playbackInterval = setInterval(() => {
+        if (playbackIndex >= historyCoordinates.length - 1) {
+          pausePlayback();
+          return;
+        }
+        playbackIndex++;
+        updatePlaybackMarker();
+      }, speedInterval);
+    }
+
+    function pausePlayback() {
+      isPlaying = false;
+      document.getElementById('playbackPlayIcon').className = 'fa-solid fa-play';
+      clearInterval(playbackInterval);
+    }
+
+    function stopPlayback() {
+      pausePlayback();
+      playbackIndex = 0;
+      historyCoordinates = [];
+    }
+
+    function onPlaybackSeek(val) {
+      playbackIndex = parseInt(val);
+      updatePlaybackMarker();
+    }
+
+    function changePlaybackSpeed() {
+      playbackSpeed = parseFloat(document.getElementById('playbackSpeedSelect').value);
+      if (isPlaying) startPlayback();
+    }
+
+    function updatePlaybackMarker() {
+      if (!historyCoordinates || historyCoordinates.length === 0) return;
+      if (playbackIndex >= historyCoordinates.length) playbackIndex = historyCoordinates.length - 1;
+
+      const point = historyCoordinates[playbackIndex];
+      const coords = [point.lat, point.lng];
+
+      let bearing = point.course;
+      if (playbackIndex < historyCoordinates.length - 1) {
+        const nextPt = historyCoordinates[playbackIndex + 1];
+        bearing = calculateBearing(point.lat, point.lng, nextPt.lat, nextPt.lng);
+      }
+
+      document.getElementById('playbackProgress').value = playbackIndex;
+      document.getElementById('playbackCurrentIndex').innerText = `${playbackIndex + 1} / ${historyCoordinates.length}`;
+      document.getElementById('mapModalSpeedText').innerText = `${point.speed} km/h`;
+
+      if (point.time) {
+        document.getElementById('playbackTimestampDisplay').innerText = String(point.time);
+      }
+
+      const icon = createDirectionalVehicleIcon(bearing, '#2563eb', activeMapDevice?.device?.name || '');
+
+      if (modalVehicleMarker) {
+        modalVehicleMarker.setLatLng(coords);
+        modalVehicleMarker.setIcon(icon);
+      } else {
+        modalVehicleMarker = L.marker(coords, { icon }).addTo(modalMap);
+      }
+
+      if (progressPolyline) {
+        const passedCoordinates = historyCoordinates.slice(0, playbackIndex + 1).map(c => [c.lat, c.lng]);
+        progressPolyline.setLatLngs(passedCoordinates);
+      }
+
+      modalMap.panTo(coords, { animate: true, duration: 0.12 });
+    }
+
+    // 5. Enhanced Reports Engine
+    function initReportsTab() {
+      populateReportsDeviceDropdown();
+      setReportDatePreset('today');
+    }
+
+    function populateReportsDeviceDropdown() {
+      const select = document.getElementById('reportDeviceSelect');
+      if (!select) return;
+      select.innerHTML = allDevices.map(d => `<option value="${d.id}">${d.name} (${d.uniqueId})</option>`).join('');
+    }
+
+    function setReportDatePreset(preset) {
+      const now = new Date();
+      let fromDate = new Date();
+      let toDate = new Date();
+
+      if (preset === 'today') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        toDate = now;
+      } else if (preset === 'yesterday') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+        toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+      } else if (preset === '3days') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3, 0, 0, 0);
+        toDate = now;
+      } else if (preset === 'week') {
+        const day = now.getDay() || 7;
+        fromDate.setHours(-24 * (day - 1));
+        fromDate.setHours(0, 0, 0, 0);
+        toDate = now;
+      }
+
+      document.getElementById('reportFromDate').value = formatDateTimeInput(fromDate);
+      document.getElementById('reportToDate').value = formatDateTimeInput(toDate);
+    }
+
+    function formatHoursMinutes(ms) {
+      if (!ms || ms <= 0) return '0m';
+      const sec = Math.floor(ms / 1000);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    }
+
+    function cleanAndFormatReportData(records, category) {
+      if (!Array.isArray(records)) records = [records];
+
+      let totalDistM = 0;
+      let topSpeed = 0;
+      let movingDurationMs = 0;
+      let idleDurationMs = 0;
+      let movingSpeedSamplesSum = 0;
+      let movingSpeedSampleCount = 0;
+
+      if (category === 'route' || (records.length > 0 && (records[0].fixTime || records[0].deviceTime))) {
+        const sortedPositions = [...records].sort((a, b) => {
+          const tA = new Date(a.fixTime || a.deviceTime || a.serverTime || 0).getTime();
+          const tB = new Date(b.fixTime || b.deviceTime || b.serverTime || 0).getTime();
+          return tA - tB;
+        });
+
+        for (let i = 0; i < sortedPositions.length; i++) {
+          const p = sortedPositions[i];
+          
+          let spd = 0;
+          if (p.speedKmh) spd = parseFloat(p.speedKmh) || 0;
+          else if (p.speed !== undefined) spd = Math.round(Number(p.speed) * KNOTS_TO_KMH);
+
+          if (spd > 160) spd = 0;
+          if (spd > topSpeed) topSpeed = spd;
+
+          if (i > 0) {
+            const prev = sortedPositions[i - 1];
+            const tPrev = new Date(prev.fixTime || prev.deviceTime || prev.serverTime || 0).getTime();
+            const tCurr = new Date(p.fixTime || p.deviceTime || p.serverTime || 0).getTime();
+            const deltaMs = Math.max(0, tCurr - tPrev);
+
+            if (deltaMs > 0 && deltaMs < 4 * 3600 * 1000) {
+              const distM = getHaversineDistance(
+                Number(prev.latitude), Number(prev.longitude),
+                Number(p.latitude), Number(p.longitude)
+              );
+
+              const impliedKmh = (distM / (deltaMs / 1000)) * 3.6;
+
+              if (impliedKmh <= 160) {
+                if (distM >= 3 || spd > 2) {
+                  totalDistM += distM;
+                }
+              }
+
+              if (spd > 2) {
+                movingDurationMs += deltaMs;
+                movingSpeedSamplesSum += spd;
+                movingSpeedSampleCount++;
+              } else {
+                idleDurationMs += deltaMs;
+              }
+            }
+          }
+        }
+      } else {
+        records.forEach(item => {
+          let d = 0;
+          if (item['Distance (km)']) d = parseFloat(item['Distance (km)']) * 1000;
+          else if (item.distance !== undefined) d = Number(item.distance);
+          totalDistM += (d || 0);
+
+          let spd = 0;
+          if (item['Max Speed (km/h)']) spd = parseFloat(item['Max Speed (km/h)']) || 0;
+          else if (item.maxSpeed !== undefined) spd = Math.round(Number(item.maxSpeed) * KNOTS_TO_KMH);
+          else if (item['Speed (km/h)']) spd = parseFloat(item['Speed (km/h)']) || 0;
+          else if (item.speed !== undefined) spd = Math.round(Number(item.speed) * KNOTS_TO_KMH);
+
+          if (spd > 160) spd = 0;
+          if (spd > topSpeed) topSpeed = spd;
+
+          let avg = 0;
+          if (item['Avg Speed (km/h)']) avg = parseFloat(item['Avg Speed (km/h)']) || 0;
+          else if (item.averageSpeed !== undefined) avg = Math.round(Number(item.averageSpeed) * KNOTS_TO_KMH);
+          if (avg > 0) {
+            movingSpeedSamplesSum += avg;
+            movingSpeedSampleCount++;
+          }
+
+          if (item.duration !== undefined) movingDurationMs += Number(item.duration);
+          else if (item.engineHours !== undefined) movingDurationMs += Number(item.engineHours);
+          if (item.todayStoppedTime !== undefined) idleDurationMs += Number(item.todayStoppedTime);
+        });
+      }
+
+      const formattedRows = records.map(raw => {
+        const item = { ...raw };
+        const clean = {};
+
+        const devId = item.deviceId || document.getElementById('reportDeviceSelect')?.value;
+        const matchedDevice = allDevices.find(d => String(d.id) === String(devId));
+        clean['Vehicle'] = matchedDevice ? matchedDevice.name : `Unit #${devId}`;
+
+        if (category === 'route' || item.fixTime || item.deviceTime) {
+          const rawTime = item.formattedTime || item.fixTime || item.deviceTime || item.serverTime;
+          clean['Recorded Time (IST)'] = rawTime ? new Date(rawTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }) : 'N/A';
+          
+          if (item.latitude !== undefined && item.longitude !== undefined) {
+            clean['Coordinates'] = `${Number(item.latitude).toFixed(6)}, ${Number(item.longitude).toFixed(6)}`;
+          }
+
+          const speedKmh = item.speedKmh ? item.speedKmh : (item.speed !== undefined ? Math.round(Number(item.speed) * KNOTS_TO_KMH) + ' km/h' : '0 km/h');
+          clean['Speed'] = speedKmh;
+
+          if (item.course !== undefined) {
+            clean['Direction'] = `${degreesToCompass(item.course)} (${Math.round(item.course)}°)`;
+          }
+
+          clean['Ignition'] = (item.ignition === 'ON' || item.attributes?.ignition === true) ? 'ON' : 'OFF';
+          clean['Location / Address'] = item.address || 'GPS Coordinate Fix';
+          return clean;
+        }
+
+        if (item.type !== undefined) {
+          clean['Event Alert'] = EVENT_TYPE_DICTIONARY[item.type] || item.type.toUpperCase();
+        }
+
+        if (item['Distance (km)']) clean['Distance'] = item['Distance (km)'];
+        else if (item.distance !== undefined) clean['Distance'] = (Number(item.distance) / 1000).toFixed(2) + ' km';
+
+        if (item['Odometer (km)']) clean['Odometer'] = item['Odometer (km)'];
+        else if (item.totalDistance !== undefined) clean['Odometer'] = (Number(item.totalDistance) / 1000).toFixed(2) + ' km';
+
+        if (item['Speed (km/h)']) clean['Speed'] = item['Speed (km/h)'];
+        else if (item.speed !== undefined) clean['Speed'] = Math.round(Number(item.speed) * KNOTS_TO_KMH) + ' km/h';
+
+        if (item['Max Speed (km/h)']) clean['Max Speed'] = item['Max Speed (km/h)'];
+        else if (item.maxSpeed !== undefined) clean['Max Speed'] = Math.round(Number(item.maxSpeed) * KNOTS_TO_KMH) + ' km/h';
+
+        if (item['Duration']) clean['Duration'] = item['Duration'];
+        else if (item.duration !== undefined) {
+          const totalSec = Math.floor(Number(item.duration) / 1000);
+          clean['Duration'] = `${Math.floor(totalSec / 3600)}h ${Math.floor((totalSec % 3600) / 60)}m ${totalSec % 60}s`;
+        }
+
+        if (item.startTime) clean['Start Time'] = new Date(item.startTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+        if (item.endTime) clean['End Time'] = new Date(item.endTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+        if (item.serverTime || item.eventTime) clean['Event Time'] = new Date(item.serverTime || item.eventTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+
+        if (item.address) clean['Address'] = item.address;
+        if (item.attributes?.ignition !== undefined) clean['Ignition'] = item.attributes.ignition ? 'ON' : 'OFF';
+
+        return clean;
+      });
+
+      const calculatedAvg = movingSpeedSampleCount > 0 ? Math.round(movingSpeedSamplesSum / movingSpeedSampleCount) : 0;
+      
+      document.getElementById('reportSummaryMetrics').classList.remove('hidden');
+      document.getElementById('repMetricRecords').innerText = formattedRows.length;
+      document.getElementById('repMetricDistance').innerText = (totalDistM / 1000).toFixed(2) + ' km';
+      document.getElementById('repMetricMaxSpeed').innerText = topSpeed + ' km/h';
+      document.getElementById('repMetricAvgSpeed').innerText = `(Avg ${calculatedAvg} km/h)`;
+      document.getElementById('repMetricDuration').innerText = `Moving: ${formatHoursMinutes(movingDurationMs)}`;
+      document.getElementById('repMetricIdle').innerText = `Idle: ${formatHoursMinutes(idleDurationMs)}`;
+
+      return formattedRows;
+    }
+
+    async function generateReportQuery() {
+      const category = document.getElementById('reportCategorySelect').value;
+      const deviceId = document.getElementById('reportDeviceSelect').value;
+      const fromVal = document.getElementById('reportFromDate').value;
+      const toVal = document.getElementById('reportToDate').value;
+
+      if (!deviceId || !fromVal || !toVal) {
+        alert('Please specify target vehicle and date range.');
+        return;
+      }
+
+      const fromIso = new Date(fromVal).toISOString();
+      const toIso = new Date(toVal).toISOString();
+      const titleEl = document.getElementById('reportOutputTitle');
+      const countEl = document.getElementById('reportRowCount');
+      const thead = document.getElementById('reportTableHead');
+      const tbody = document.getElementById('reportTableBody');
+
+      const activeDevName = allDevices.find(d => String(d.id) === String(deviceId))?.name || `ID ${deviceId}`;
+      titleEl.innerText = `${category.toUpperCase()} REPORT - ${activeDevName}`;
+      countEl.innerText = 'Compiling report...';
+      showGlobalLoader('Processing Telematics Report...');
+
+      try {
+        let rawData = null;
+
+        if (category === 'route') {
+          try {
+            const reportRes = await fetch(`/api/reports/route?deviceId=${deviceId}&from=${fromIso}&to=${toIso}`);
+            if (reportRes.ok) rawData = await reportRes.json();
+          } catch (e) {}
+
+          if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
+            const posRes = await fetch(`/api/positions?deviceId=${deviceId}&from=${fromIso}&to=${toIso}`);
+            if (posRes.ok) rawData = await posRes.json();
+          }
+        } else {
+          const url = `/api/reports/${category}?deviceId=${deviceId}&from=${fromIso}&to=${toIso}`;
+          const res = await fetch(url);
+          if (res.ok) rawData = await res.json();
+        }
+
+        if (!rawData) throw new Error('Data endpoint unreachable');
+
+        const cleanedRecords = cleanAndFormatReportData(rawData, category);
+        countEl.innerText = `${cleanedRecords.length} records generated`;
+
+        if (cleanedRecords.length === 0 || Object.keys(cleanedRecords[0]).length === 0) {
+          tbody.innerHTML = `<tr><td class="text-center py-12 text-slate-400">No activity recorded for the selected timeframe</td></tr>`;
+          return;
+        }
+
+        const columns = Object.keys(cleanedRecords[0]);
+        thead.innerHTML = `<tr>${columns.map(col => `<th class="px-4 py-3">${col}</th>`).join('')}</tr>`;
+
+        tbody.innerHTML = cleanedRecords.map(row => `
+          <tr class="hover:bg-slate-50 transition">
+            ${columns.map(col => `<td class="px-4 py-2.5 font-medium">${row[col] !== undefined ? row[col] : '--'}</td>`).join('')}
+          </tr>
+        `).join('');
+
+        showToast('Report generated successfully');
+      } catch (err) {
+        countEl.innerText = 'Error';
+        tbody.innerHTML = `<tr><td class="text-center py-8 text-red-500">Failed to generate report from engine. Verify date parameters.</td></tr>`;
+      } finally {
+        hideGlobalLoader();
+      }
+    }
+
+    function downloadReportExcel() {
+      const category = document.getElementById('reportCategorySelect').value;
+      const deviceId = document.getElementById('reportDeviceSelect').value;
+      const fromVal = document.getElementById('reportFromDate').value;
+      const toVal = document.getElementById('reportToDate').value;
+
+      if (!deviceId || !fromVal || !toVal) {
+        alert('Please select vehicle and date range first.');
+        return;
+      }
+
+      const fromIso = new Date(fromVal).toISOString();
+      const toIso = new Date(toVal).toISOString();
+      const exportUrl = `/api/reports/${category}?deviceId=${deviceId}&from=${fromIso}&to=${toIso}&export=xlsx`;
+
+      window.open(exportUrl, '_blank');
+      showToast('Downloading Excel spreadsheet...');
+    }
+
+    // 6. Dynamic Template Command Engine
+    async function openCommandModal(deviceId, deviceName) {
+      document.getElementById('cmdDeviceId').value = deviceId;
+      document.getElementById('cmdTargetTitle').innerText = `Target: ${deviceName} (ID: ${deviceId})`;
+      
+      const feedbackBox = document.getElementById('cmdFeedbackBox');
+      feedbackBox.className = 'p-3 rounded-lg text-xs hidden';
+      feedbackBox.innerText = '';
+
+      const liveItem = telemetryList.find(i => i.device.id === deviceId);
+      const dot = document.getElementById('cmdModalDeviceStatusDot');
+      const text = document.getElementById('cmdModalDeviceStatusText');
+      const seen = document.getElementById('cmdModalDeviceLastSeen');
+
+      if (liveItem) {
+        const d = liveItem.device;
+        const p = liveItem.position || {};
+        const isOnline = (p.attributes?.currentStatus || d.status || 'OFFLINE').toUpperCase() === 'RUNNING' || d.status === 'online';
+
+        dot.className = `w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`;
+        text.innerText = isOnline ? 'Hardware Online (TCP Active)' : 'Hardware Standby / Idle';
+        seen.innerText = d.lastUpdate ? `Last Ping: ${new Date(d.lastUpdate).toLocaleTimeString('en-IN', { hour12: true })}` : 'Last Seen: N/A';
+      } else {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-400';
+        text.innerText = 'Status: Standby';
+        seen.innerText = '';
+      }
+
+      activeDeviceCommandTemplates = [];
+      try {
+        const tRes = await fetch(`/api/commands/send?deviceId=${deviceId}`);
+        if (tRes.ok) {
+          const templates = await tRes.json();
+          if (Array.isArray(templates)) {
+            activeDeviceCommandTemplates = templates;
+          }
+        }
+      } catch (e) {}
+
+      populateCommandTypeDropdown();
+
+      const stopTpl = activeDeviceCommandTemplates.find(t => t.type === 'engineStop');
+      if (stopTpl && stopTpl.attributes && stopTpl.attributes.devicePassword) {
+        document.getElementById('cmdDevicePassword').value = stopTpl.attributes.devicePassword;
+      } else {
+        document.getElementById('cmdDevicePassword').value = '123456';
+      }
+
+      document.getElementById('commandModal').classList.remove('hidden');
+    }
+
+    function populateCommandTypeDropdown() {
+      const select = document.getElementById('cmdTypeSelect');
+      let html = '';
+
+      if (activeDeviceCommandTemplates.length > 0) {
+        html += activeDeviceCommandTemplates.map(t => {
+          const label = t.description || t.type;
+          return `<option value="${t.type}" data-tpl-id="${t.id}">${label} (${t.type})</option>`;
+        }).join('');
+      } else {
+        html += `
+          <option value="engineStop">Engine Stop (Cut Fuel / Power Relay)</option>
+          <option value="engineResume">Engine Resume (Restore Fuel / Power Relay)</option>
+          <option value="rebootDevice">Reboot Hardware Tracker</option>
+          <option value="positionSingle">Request Immediate Location Fix</option>
+        `;
+      }
+
+      html += `<option value="custom">Custom GPRS / SMS Command String</option>`;
+      select.innerHTML = html;
+      onCmdTypeChange();
+    }
+
+    function closeCommandModal() {
+      document.getElementById('commandModal').classList.add('hidden');
+    }
+
+    function onCmdTypeChange() {
+      const select = document.getElementById('cmdTypeSelect');
+      const type = select.value;
+      const customBox = document.getElementById('cmdCustomDataBox');
+      const customStrInput = document.getElementById('cmdCustomString');
+      const passInput = document.getElementById('cmdDevicePassword');
+
+      const selectedOption = select.options[select.selectedIndex];
+      const tplId = selectedOption ? parseInt(selectedOption.getAttribute('data-tpl-id')) : null;
+      const matchedTpl = activeDeviceCommandTemplates.find(t => (tplId && t.id === tplId) || t.type === type);
+
+      if (matchedTpl && matchedTpl.attributes && matchedTpl.attributes.devicePassword) {
+        passInput.value = matchedTpl.attributes.devicePassword;
+      }
+
+      if (type === 'custom') {
+        customBox.classList.remove('hidden');
+      } else {
+        if (type === 'engineStop') customStrInput.value = 'RELAY,1#';
+        else if (type === 'engineResume') customStrInput.value = 'RELAY,0#';
+        else if (type === 'rebootDevice') customStrInput.value = 'RESET#';
+        else if (type === 'positionSingle') customStrInput.value = 'WHERE#';
+        else customStrInput.value = '';
+        customBox.classList.remove('hidden');
+      }
+    }
+
+    function executeQuickCommand(type) {
+      const select = document.getElementById('cmdTypeSelect');
+      select.value = type;
+      onCmdTypeChange();
+      document.getElementById('cmdSendBtn').click();
+    }
+
+    async function dispatchCommandSubmit(e) {
+      e.preventDefault();
+      const deviceId = document.getElementById('cmdDeviceId').value;
+      const select = document.getElementById('cmdTypeSelect');
+      const type = select.value;
+      const customString = document.getElementById('cmdCustomString').value.trim();
+      const password = document.getElementById('cmdDevicePassword').value.trim();
+      const isTextChannel = document.getElementById('cmdTextChannelSelect').value === 'true';
+      const btn = document.getElementById('cmdSendBtn');
+      const feedbackBox = document.getElementById('cmdFeedbackBox');
+
+      const selectedOption = select.options[select.selectedIndex];
+      const tplId = selectedOption ? parseInt(selectedOption.getAttribute('data-tpl-id')) : null;
+      const matchedTpl = activeDeviceCommandTemplates.find(t => (tplId && t.id === tplId) || t.type === type);
+
+      let payload = {};
+      if (matchedTpl) {
+        payload = {
+          ...matchedTpl,
+          deviceId: parseInt(deviceId),
+          textChannel: isTextChannel,
+          attributes: {
+            ...(matchedTpl.attributes || {})
+          }
+        };
+      } else {
+        payload = {
+          deviceId: parseInt(deviceId),
+          type: type,
+          textChannel: isTextChannel,
+          attributes: {}
+        };
+      }
+
+      if (password) {
+        payload.attributes.devicePassword = password;
+      }
+
+      if (customString) {
+        payload.attributes.data = customString;
+        payload.data = customString;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i><span>Dispatching...</span>';
+      showGlobalLoader('Transmitting Telematics Hardware Command...');
+
+      try {
+        const res = await fetch(`/api/commands/send?deviceId=${deviceId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok || res.status === 202) {
+          feedbackBox.className = 'p-3 rounded-lg text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 block';
+          if (data.queued) {
+            feedbackBox.innerHTML = '<i class="fa-solid fa-clock mr-1"></i> <strong>Command Queued:</strong> Vehicle socket on standby; will execute on immediate next ping.';
+          } else {
+            feedbackBox.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i> <strong>Command Executed:</strong> Delivered to device.';
+          }
+          showToast(data.queued ? 'Command queued for execution!' : 'Command delivered to vehicle!');
+          setTimeout(() => {
+            closeCommandModal();
+          }, 1800);
+        } else {
+          feedbackBox.className = 'p-3 rounded-lg text-xs bg-red-50 text-red-800 border border-red-200 block';
+          const errMsg = data.error || data.message || data.details || 'Hardware communication failed. Ensure tracker is powered and online.';
+          feedbackBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1"></i> <strong>Transmission Failed:</strong> ${errMsg}`;
+        }
+      } catch (err) {
+        feedbackBox.className = 'p-3 rounded-lg text-xs bg-red-50 text-red-800 border border-red-200 block';
+        feedbackBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1"></i> <strong>Network Error:</strong> Server connection timeout.`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane text-xs"></i><span>Send Command</span>';
+        hideGlobalLoader();
+      }
+    }
+
+    // 7. Devices Manager CRUD Engine
+    async function loadDevices() {
+      try {
+        const res = await fetch('/api/devices');
+        if (!res.ok) return;
+        allDevices = await res.json();
+        onDeviceSearchChange();
+        populateReportsDeviceDropdown();
+      } catch (e) {}
+    }
+
+    function onDeviceSearchChange() {
+      const term = (document.getElementById('devSearchInput')?.value || '').toLowerCase().trim();
+      devFilteredList = allDevices.filter(d =>
+        (d.name && d.name.toLowerCase().includes(term)) ||
+        (d.uniqueId && d.uniqueId.includes(term)) ||
+        (d.model && d.model.toLowerCase().includes(term)) ||
+        (d.phone && d.phone.includes(term))
+      );
+      devCurrentPage = 1;
+      renderDevicesTable();
+    }
+
+    function onDevicePageSizeChange() {
+      devPageSize = parseInt(document.getElementById('devicePageSize').value) || 10;
+      devCurrentPage = 1;
+      renderDevicesTable();
+    }
+
+    function renderDevicesTable() {
+      const tbody = document.getElementById('devicesTableBody');
+      const totalCount = devFilteredList.length;
+      document.getElementById('devicesTotalCount').innerText = totalCount;
+
+      if (totalCount === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">No matching devices registered</td></tr>`;
+        renderDevicePagination(0);
+        return;
+      }
+
+      const startIndex = (devCurrentPage - 1) * devPageSize;
+      const paginatedItems = devFilteredList.slice(startIndex, startIndex + devPageSize);
+
+      tbody.innerHTML = paginatedItems.map(d => {
+        const vehicleIcon = getVehicleIconClass(d.category, d.model);
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-4 py-3 font-bold text-black flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 text-xs">
+                <i class="fa-solid ${vehicleIcon}"></i>
+              </div>
+              <span>${d.name}</span>
+            </td>
+            <td class="px-4 py-3 font-mono text-slate-600">${d.uniqueId}</td>
+            <td class="px-4 py-3">${d.model || 'G11 (5023)'}</td>
+            <td class="px-4 py-3 font-mono">${d.phone || '--'}</td>
+            <td class="px-4 py-3 uppercase text-[10px] font-bold text-slate-500">${d.category || 'Car'}</td>
+            <td class="px-4 py-3 text-slate-600">${d.attributes?.driverName || d.contact || 'None'}</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${d.status === 'online' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}">
+                <span class="w-1.5 h-1.5 rounded-full ${d.status === 'online' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+                ${(d.status || 'offline').toUpperCase()}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-right space-x-1">
+              <button onclick="openDeviceFormModal('edit', ${d.id})" title="Edit Device" class="p-1.5 rounded bg-slate-900 hover:bg-black text-white text-xs">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="deleteDevice(${d.id})" title="Delete Device" class="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600 text-xs">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      renderDevicePagination(totalCount);
+    }
+
+    function renderDevicePagination(total) {
+      const container = document.getElementById('devicePaginationControls');
+      const totalPages = Math.ceil(total / devPageSize) || 1;
+
+      let html = `
+        <button onclick="changeDevicePage(${devCurrentPage - 1})" ${devCurrentPage <= 1 ? 'disabled' : ''} class="px-2.5 py-1 border border-slate-200 rounded text-xs font-bold ${devCurrentPage <= 1 ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-200 bg-white'}">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      `;
+
+      for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= devCurrentPage - 1 && p <= devCurrentPage + 1)) {
+          html += `
+            <button onclick="changeDevicePage(${p})" class="px-2.5 py-1 border rounded text-xs font-bold ${p === devCurrentPage ? 'btn-royal-blue border-[#2b35d8]' : 'border-slate-200 bg-white hover:bg-slate-100'}">
+              ${p}
+            </button>
+          `;
+        } else if (p === fleetCurrentPage - 2 || p === fleetCurrentPage + 2) {
+          html += `<span class="px-1 text-slate-400">...</span>`;
+        }
+      }
+
+      html += `
+        <button onclick="changeDevicePage(${devCurrentPage + 1})" ${devCurrentPage >= totalPages ? 'disabled' : ''} class="px-2.5 py-1 border border-slate-200 rounded text-xs font-bold ${devCurrentPage >= totalPages ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-200 bg-white'}">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      `;
+
+      container.innerHTML = html;
+    }
+
+    function changeDevicePage(p) {
+      devCurrentPage = p;
+      renderDevicesTable();
+    }
+
+    // 8. Device Form Controller
+    async function openDeviceFormModal(mode, deviceId = null) {
+      document.getElementById('deviceModal').classList.remove('hidden');
+
+      const modelSelect = document.getElementById('devModalModel');
+      const modelsToRender = dynamicModels.length > 0 ? dynamicModels : ['G11 (5023)', 'AQULA AIS 140', 'Wetrack 140', 'Concox GT06N', 'Teltonika FMB920'];
+      modelSelect.innerHTML = modelsToRender.map(m => `<option value="${m}">${m}</option>`).join('');
+
+      const catSelect = document.getElementById('devModalCategory');
+      const categoriesToRender = dynamicCategories.length > 0 ? dynamicCategories : ['car', 'truck', 'motorcycle', 'bus', 'van', 'pickup'];
+      catSelect.innerHTML = categoriesToRender.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
+
+      const grpSelect = document.getElementById('devModalGroup');
+      grpSelect.innerHTML = `<option value="0">None</option>` + allGroups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+
+      document.getElementById('devAttributesContainer').innerHTML = '';
+      activeDevLinkedUserIds = [];
+      activeDevLinkedGeofenceIds = [];
+
+      const usersContainer = document.getElementById('devAssignedUsersChips');
+      usersContainer.innerHTML = `<span class="text-xs text-blue-600 flex items-center gap-1.5"><i class="fa-solid fa-spinner fa-spin"></i> Checking assignments...</span>`;
+
+      if (mode === 'edit' && deviceId) {
+        const d = allDevices.find(item => item.id === deviceId);
+        if (!d) return;
+
+        document.getElementById('deviceModalTitle').innerText = `Edit Device: ${d.name}`;
+        document.getElementById('devModalId').value = d.id;
+        document.getElementById('devModalName').value = d.name || '';
+        document.getElementById('devModalUniqueId').value = d.uniqueId || '';
+        document.getElementById('devModalPhone').value = d.phone || '';
+        document.getElementById('devModalModel').value = d.model || modelsToRender[0];
+        document.getElementById('devModalGroup').value = d.groupId || '0';
+        document.getElementById('devModalContact').value = d.contact || '';
+        document.getElementById('devModalCategory').value = d.category || 'car';
+
+        if (d.expirationTime) {
+          document.getElementById('devModalExpiryDate').value = d.expirationTime.split('T')[0];
+        } else {
+          document.getElementById('devModalExpiryDate').value = '';
+        }
+
+        const attrs = d.attributes || {};
+        Object.keys(attrs).forEach(k => {
+          if (k !== 'assignedUserIds') renderDeviceAttributeRow(k, attrs[k]);
+        });
+
+        let loadedIds = [];
+        if (attrs.assignedUserIds && Array.isArray(attrs.assignedUserIds)) {
+          loadedIds = [...attrs.assignedUserIds];
+        } else {
+          allUsers.forEach(u => {
+            if (u.deviceIds && Array.isArray(u.deviceIds) && u.deviceIds.includes(d.id)) {
+              if (!loadedIds.includes(u.id)) loadedIds.push(u.id);
+            }
+          });
+        }
+
+        activeDevLinkedUserIds = loadedIds;
+
+        if (d.geofenceIds && Array.isArray(d.geofenceIds)) {
+          activeDevLinkedGeofenceIds = [...d.geofenceIds];
+        }
+      } else {
+        document.getElementById('deviceModalTitle').innerText = 'Register New Device';
+        document.getElementById('devModalId').value = '';
+        document.getElementById('devModalName').value = '';
+        document.getElementById('devModalUniqueId').value = '';
+        document.getElementById('devModalPhone').value = '';
+        document.getElementById('devModalModel').value = modelsToRender[0];
+        document.getElementById('devModalGroup').value = '0';
+        document.getElementById('devModalContact').value = '';
+        document.getElementById('devModalCategory').value = 'car';
+        document.getElementById('devModalExpiryDate').value = '';
+
+        renderDeviceAttributeRow('Driver Name', '');
+        renderDeviceAttributeRow('Speed Limit', '60');
+      }
+
+      renderDevAssignedUsersChips();
+      populateDevUserSelect();
+      renderDevLinkedGeofencesChips();
+      populateDevGeofenceSelect();
+    }
+
+    function closeDeviceModal() {
+      document.getElementById('deviceModal').classList.add('hidden');
+    }
+
+    function renderDevAssignedUsersChips() {
+      const box = document.getElementById('devAssignedUsersChips');
+      const badgeCount = document.getElementById('devConnectedUserCountBadge');
+
+      if (badgeCount) {
+        badgeCount.innerText = `${activeDevLinkedUserIds.length} Connected`;
+      }
+
+      if (!activeDevLinkedUserIds || activeDevLinkedUserIds.length === 0) {
+        box.innerHTML = `<span class="text-xs text-slate-400">No users connected to this vehicle</span>`;
+        return;
+      }
+
+      box.innerHTML = activeDevLinkedUserIds.map(uId => {
+        const u = allUsers.find(item => item.id === uId) || { name: `User #${uId}`, username: `ID: ${uId}` };
+        return `
+          <span class="chip-badge bg-blue-50 text-blue-900 border border-blue-200">
+            <i class="fa-solid fa-user text-[10px] text-blue-600"></i>
+            <span>${u.name || u.username}</span>
+            <i onclick="removeUserFromActiveDevice(${uId})" class="fa-solid fa-xmark chip-remove" title="Unlink User"></i>
+          </span>
+        `;
+      }).join('');
+    }
+
+    function populateDevUserSelect() {
+      filterDevUserOptions();
+    }
+
+    function filterDevUserOptions() {
+      const searchVal = (document.getElementById('devUserSearchInput')?.value || '').toLowerCase().trim();
+      const select = document.getElementById('devUserAddSelect');
+      
+      const unassignedUsers = allUsers.filter(u => {
+        if (activeDevLinkedUserIds.includes(u.id)) return false;
+        if (!searchVal) return true;
+        return (
+          (u.name && u.name.toLowerCase().includes(searchVal)) ||
+          (u.username && u.username.toLowerCase().includes(searchVal)) ||
+          (u.phone && u.phone.includes(searchVal))
+        );
+      });
+
+      select.innerHTML = `<option value="">Select User to Link (${unassignedUsers.length} available)...</option>` + 
+        unassignedUsers.map(u => `<option value="${u.id}">${u.name || u.username} (${u.phone || u.email || 'No SIM'})</option>`).join('');
+    }
+
+    async function addSelectedUserToDevice() {
+      const select = document.getElementById('devUserAddSelect');
+      const userId = parseInt(select.value);
+      if (!userId) return;
+
+      const deviceId = parseInt(document.getElementById('devModalId').value);
+
+      if (!activeDevLinkedUserIds.includes(userId)) {
+        activeDevLinkedUserIds.push(userId);
+        renderDevAssignedUsersChips();
+        populateDevUserSelect();
+
+        if (deviceId) {
+          await fetch('/api/permissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, deviceId })
+          }).catch(() => {});
+          showToast('User linked to device');
+        }
+      }
+    }
+
+    async function removeUserFromActiveDevice(userId) {
+      const deviceId = parseInt(document.getElementById('devModalId').value);
+      activeDevLinkedUserIds = activeDevLinkedUserIds.filter(id => id !== userId);
+      renderDevAssignedUsersChips();
+      populateDevUserSelect();
+
+      if (deviceId) {
+        await fetch('/api/permissions', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, deviceId })
+        }).catch(() => {});
+        showToast('User unlinked');
+      }
+    }
+
+    function renderDevLinkedGeofencesChips() {
+      const box = document.getElementById('devLinkedGeofenceChips');
+      if (!activeDevLinkedGeofenceIds || activeDevLinkedGeofenceIds.length === 0) {
+        box.innerHTML = `<span class="text-xs text-slate-400">No boundaries active</span>`;
+        return;
+      }
+
+      box.innerHTML = activeDevLinkedGeofenceIds.map(gId => {
+        const g = allGeofences.find(item => item.id === gId) || { name: `Geofence #${gId}` };
+        return `
+          <span class="chip-badge bg-emerald-50 text-emerald-900 border border-emerald-200">
+            <i class="fa-solid fa-draw-polygon text-[10px] text-emerald-600"></i>
+            <span>${g.name}</span>
+            <i onclick="removeGeofenceFromActiveDevice(${gId})" class="fa-solid fa-xmark chip-remove" title="Remove"></i>
+          </span>
+        `;
+      }).join('');
+    }
+
+    function populateDevGeofenceSelect() {
+      const select = document.getElementById('devGeofenceAddSelect');
+      const unlinkedGeofences = allGeofences.filter(g => !activeDevLinkedGeofenceIds.includes(g.id));
+      select.innerHTML = `<option value="">+ Select Geofence to Add...</option>` + 
+        unlinkedGeofences.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    }
+
+    function addSelectedGeofenceToDevice() {
+      const select = document.getElementById('devGeofenceAddSelect');
+      const gId = parseInt(select.value);
+      if (!gId) return;
+
+      if (!activeDevLinkedGeofenceIds.includes(gId)) {
+        activeDevLinkedGeofenceIds.push(gId);
+        renderDevLinkedGeofencesChips();
+        populateDevGeofenceSelect();
+      }
+    }
+
+    function removeGeofenceFromActiveDevice(gId) {
+      activeDevLinkedGeofenceIds = activeDevLinkedGeofenceIds.filter(id => id !== gId);
+      renderDevLinkedGeofencesChips();
+      populateDevGeofenceSelect();
+    }
+
+    function renderDeviceAttributeRow(key = '', val = '') {
+      const container = document.getElementById('devAttributesContainer');
+      const rowId = 'dev_attr_' + Math.random().toString(36).substr(2, 9);
+      const div = document.createElement('div');
+      div.id = rowId;
+      div.className = 'grid grid-cols-2 gap-2 items-center';
+      div.innerHTML = `
+        <input type="text" value="${key}" placeholder="Key name" class="form-input text-xs dev-attr-key font-medium">
+        <div class="flex items-center gap-2">
+          <input type="text" value="${val}" placeholder="Value" class="w-full form-input text-xs dev-attr-val font-medium">
+          <button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-slate-400 hover:text-red-600 p-1">
+            <i class="fa-solid fa-trash text-xs"></i>
+          </button>
+        </div>
+      `;
+      container.appendChild(div);
+    }
+
+    function addDeviceAttributeRow() {
+      renderDeviceAttributeRow('', '');
+    }
+
+    async function saveDeviceForm() {
+      const id = document.getElementById('devModalId').value;
+      const name = document.getElementById('devModalName').value.trim();
+      const uniqueId = document.getElementById('devModalUniqueId').value.trim();
+
+      if (!name || !uniqueId) {
+        alert('Vehicle Number and IMEI are mandatory.');
+        return;
+      }
+
+      const attributes = {};
+      document.querySelectorAll('#devAttributesContainer div[id^="dev_attr_"]').forEach(row => {
+        const k = row.querySelector('.dev-attr-key')?.value.trim();
+        const v = row.querySelector('.dev-attr-val')?.value.trim();
+        if (k) attributes[k] = v;
+      });
+
+      attributes.assignedUserIds = activeDevLinkedUserIds;
+
+      const payload = {
+        name,
+        uniqueId,
+        phone: document.getElementById('devModalPhone').value.trim(),
+        model: document.getElementById('devModalModel').value,
+        groupId: parseInt(document.getElementById('devModalGroup').value) || 0,
+        contact: document.getElementById('devModalContact').value.trim(),
+        category: document.getElementById('devModalCategory').value,
+        geofenceIds: activeDevLinkedGeofenceIds,
+        attributes
+      };
+
+      showGlobalLoader('Saving Device Specifications...');
+
+      try {
+        const url = id ? `/api/devices/${id}` : '/api/devices';
+        const method = id ? 'PUT' : 'POST';
+        if (id) payload.id = parseInt(id);
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const savedDevice = await res.json();
+          if (!id && savedDevice.id && activeDevLinkedUserIds.length > 0) {
+            for (const uId of activeDevLinkedUserIds) {
+              await fetch('/api/permissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: uId, deviceId: savedDevice.id })
+              }).catch(() => {});
+            }
+          }
+          closeDeviceModal();
+          loadDevices();
+          loadTelemetryFeed();
+          showToast(`Device ${name} saved successfully`);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to save device. Verify IMEI uniqueness.');
+        }
+      } catch (e) {
+        alert('Transmission error to engine server');
+      } finally {
+        hideGlobalLoader();
+      }
+    }
+
+    async function deleteDevice(id) {
+      if (!confirm(`Permanently delete Device ID: ${id}?`)) return;
+      showGlobalLoader('Deleting device...');
+      try {
+        const res = await fetch(`/api/devices/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadDevices();
+          loadTelemetryFeed();
+          showToast('Device removed');
+        }
+      } catch (e) {} finally {
+        hideGlobalLoader();
+      }
+    }
+
+    // 9. Users Directory CRUD Engine
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/users');
+        if (!res.ok) return;
+        allUsers = await res.json();
+        onUserSearchChange();
+      } catch (e) {}
+    }
+
+    function onUserSearchChange() {
+      const term = (document.getElementById('userSearchInput')?.value || '').toLowerCase().trim();
+      userFilteredList = allUsers.filter(u =>
+        (u.name && u.name.toLowerCase().includes(term)) ||
+        (u.email && u.email.toLowerCase().includes(term)) ||
+        (u.username && u.username.toLowerCase().includes(term)) ||
+        (u.phone && u.phone.includes(term))
+      );
+      userCurrentPage = 1;
+      renderUsersTable();
+    }
+
+    function onUserPageSizeChange() {
+      userPageSize = parseInt(document.getElementById('userPageSize').value) || 10;
+      userCurrentPage = 1;
+      renderUsersTable();
+    }
+
+    function renderUsersTable() {
+      const tbody = document.getElementById('usersTableBody');
+      const totalCount = userFilteredList.length;
+      document.getElementById('usersTotalCount').innerText = totalCount;
+
+      if (totalCount === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400">No matching user accounts found</td></tr>`;
+        renderUserPagination(0);
+        return;
+      }
+
+      const startIndex = (userCurrentPage - 1) * userPageSize;
+      const paginatedItems = userFilteredList.slice(startIndex, startIndex + userPageSize);
+
+      tbody.innerHTML = paginatedItems.map(u => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="px-4 py-3 font-bold text-black">${u.name || u.username || 'User'}</td>
+          <td class="px-4 py-3 text-slate-600 font-mono">${u.username || u.email}</td>
+          <td class="px-4 py-3 font-mono">${u.phone || '--'}</td>
+          <td class="px-4 py-3 font-mono text-red-600 font-bold">${u.deviceLimit ?? 10} Units</td>
+          <td class="px-4 py-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.administrator ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}">
+              ${u.administrator ? 'Admin' : 'Client'}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-right space-x-1">
+            <button onclick="openUserFormModal('edit', ${u.id})" class="p-1.5 rounded bg-slate-900 hover:bg-black text-white text-xs">
+              <i class="fa-solid fa-pen"></i>
+            </button>
+            <button onclick="deleteUser(${u.id})" class="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600 text-xs">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      renderUserPagination(totalCount);
+    }
+
+    function renderUserPagination(total) {
+      const container = document.getElementById('userPaginationControls');
+      const totalPages = Math.ceil(total / userPageSize) || 1;
+
+      let html = `
+        <button onclick="changeUserPage(${userCurrentPage - 1})" ${userCurrentPage <= 1 ? 'disabled' : ''} class="px-2.5 py-1 border border-slate-200 rounded text-xs font-bold ${userCurrentPage <= 1 ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-200 bg-white'}">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      `;
+
+      for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= userCurrentPage - 1 && p <= userCurrentPage + 1)) {
+          html += `
+            <button onclick="changeUserPage(${p})" class="px-2.5 py-1 border rounded text-xs font-bold ${p === userCurrentPage ? 'btn-royal-blue border-[#2b35d8]' : 'border-slate-200 bg-white hover:bg-slate-100'}">
+              ${p}
+            </button>
+          `;
+        } else if (p === fleetCurrentPage - 2 || p === fleetCurrentPage + 2) {
+          html += `<span class="px-1 text-slate-400">...</span>`;
+        }
+      }
+
+      html += `
+        <button onclick="changeUserPage(${userCurrentPage + 1})" ${userCurrentPage >= totalPages ? 'disabled' : ''} class="px-2.5 py-1 border border-slate-200 rounded text-xs font-bold ${userCurrentPage >= totalPages ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-200 bg-white'}">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      `;
+
+      container.innerHTML = html;
+    }
+
+    function changeUserPage(p) {
+      userCurrentPage = p;
+      renderUsersTable();
+    }
+
+    // 10. User Form Controller
+    async function openUserFormModal(mode, userId = null) {
+      document.getElementById('userModal').classList.remove('hidden');
+      document.getElementById('userAttributesContainer').innerHTML = '';
+      activeUserLinkedDeviceIds = [];
+      activeUserLinkedNotificationTypes = [];
+
+      if (mode === 'edit' && userId) {
+        const u = allUsers.find(item => item.id === userId);
+        if (!u) return;
+
+        document.getElementById('userModalTitle').innerText = `Edit User: ${u.name || u.username}`;
+        document.getElementById('userModalId').value = u.id;
+        document.getElementById('userModalName').value = u.name || '';
+        document.getElementById('userModalPhone').value = u.phone || '';
+        document.getElementById('userModalEmail').value = u.username || u.email || '';
+        document.getElementById('userModalPassword').value = '';
+        document.getElementById('userModalDeviceLimit').value = u.deviceLimit ?? 10;
+        document.getElementById('userModalAdminCheck').checked = !!u.administrator;
+
+        const attrs = u.attributes || {};
+        renderUserAttributeRow('speedUnit', attrs.speedUnit || 'kmh');
+        renderUserAttributeRow('timezone', attrs.timezone || 'Asia/Kolkata');
+
+        try {
+          const devRes = await fetch(`/api/devices?userId=${u.id}`);
+          if (devRes.ok) {
+            const assigned = await devRes.json();
+            activeUserLinkedDeviceIds = assigned.map(d => d.id);
+          }
+        } catch (e) {}
+
+        if (Array.isArray(attrs.notificationTypes)) {
+          activeUserLinkedNotificationTypes = [...attrs.notificationTypes];
+        } else {
+          activeUserLinkedNotificationTypes = ['ignitionOn', 'deviceOverspeed'];
+        }
+      } else {
+        document.getElementById('userModalTitle').innerText = 'Register New Client User';
+        document.getElementById('userModalId').value = '';
+        document.getElementById('userModalName').value = '';
+        document.getElementById('userModalPhone').value = '';
+        document.getElementById('userModalEmail').value = '';
+        document.getElementById('userModalPassword').value = '';
+        document.getElementById('userModalDeviceLimit').value = '10';
+        document.getElementById('userModalAdminCheck').checked = false;
+
+        renderUserAttributeRow('speedUnit', 'kmh');
+        renderUserAttributeRow('timezone', 'Asia/Kolkata');
+        activeUserLinkedNotificationTypes = ['ignitionOn', 'deviceOverspeed'];
+      }
+
+      renderUserDeviceChips();
+      populateUserDeviceSelect();
+      renderUserNotificationsChips();
+      populateUserNotificationSelect();
+    }
+
+    function closeUserModal() {
+      document.getElementById('userModal').classList.add('hidden');
+    }
+
+    function renderUserDeviceChips() {
+      const box = document.getElementById('userDeviceChipsContainer');
+      if (!activeUserLinkedDeviceIds || activeUserLinkedDeviceIds.length === 0) {
+        box.innerHTML = `<span class="text-xs text-slate-400">No vehicles assigned</span>`;
+        return;
+      }
+
+      box.innerHTML = activeUserLinkedDeviceIds.map(dId => {
+        const d = allDevices.find(item => item.id === dId) || { name: `Device #${dId}` };
+        return `
+          <span class="chip-badge bg-blue-50 text-blue-900 border border-blue-200">
+            <i class="fa-solid fa-truck text-[10px] text-blue-600"></i>
+            <span>${d.name}</span>
+            <i onclick="removeDeviceFromActiveUser(${dId})" class="fa-solid fa-xmark chip-remove" title="Unlink"></i>
+          </span>
+        `;
+      }).join('');
+    }
+
+    function populateUserDeviceSelect() {
+      const select = document.getElementById('userDeviceAddSelect');
+      const unassignedDevices = allDevices.filter(d => !activeUserLinkedDeviceIds.includes(d.id));
+      select.innerHTML = `<option value="">+ Select Vehicle to Assign...</option>` + 
+        unassignedDevices.map(d => `<option value="${d.id}">${d.name} (${d.uniqueId})</option>`).join('');
+    }
+
+    async function addSelectedDeviceToUser() {
+      const select = document.getElementById('userDeviceAddSelect');
+      const deviceId = parseInt(select.value);
+      if (!deviceId) return;
+
+      const userId = parseInt(document.getElementById('userModalId').value);
+
+      if (!activeUserLinkedDeviceIds.includes(deviceId)) {
+        activeUserLinkedDeviceIds.push(deviceId);
+        renderUserDeviceChips();
+        populateUserDeviceSelect();
+
+        if (userId) {
+          await fetch('/api/permissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, deviceId })
+          }).catch(() => {});
+          showToast('Vehicle assigned to user');
+        }
+      }
+    }
+
+    async function removeDeviceFromActiveUser(deviceId) {
+      const userId = parseInt(document.getElementById('userModalId').value);
+      activeUserLinkedDeviceIds = activeUserLinkedDeviceIds.filter(id => id !== deviceId);
+      renderUserDeviceChips();
+      populateUserDeviceSelect();
+
+      if (userId) {
+        await fetch('/api/permissions', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, deviceId })
+        }).catch(() => {});
+        showToast('Vehicle assignment removed');
+      }
+    }
+
+    function renderUserNotificationsChips() {
+      const box = document.getElementById('userNotificationsChipsContainer');
+      if (!activeUserLinkedNotificationTypes || activeUserLinkedNotificationTypes.length === 0) {
+        box.innerHTML = `<span class="text-xs text-slate-400">No alerts subscribed</span>`;
+        return;
+      }
+
+      box.innerHTML = activeUserLinkedNotificationTypes.map(type => {
+        return `
+          <span class="chip-badge bg-amber-50 text-amber-900 border border-amber-200">
+            <i class="fa-solid fa-bell text-[10px] text-amber-500"></i>
+            <span>${EVENT_TYPE_DICTIONARY[type] || type}</span>
+            <i onclick="removeNotificationFromActiveUser('${type}')" class="fa-solid fa-xmark chip-remove" title="Remove"></i>
+          </span>
+        `;
+      }).join('');
+    }
+
+    function populateUserNotificationSelect() {
+      const select = document.getElementById('userNotificationAddSelect');
+      const standardTypes = Object.keys(EVENT_TYPE_DICTIONARY);
+      const unselectedTypes = standardTypes.filter(t => !activeUserLinkedNotificationTypes.includes(t));
+      select.innerHTML = `<option value="">+ Add Event Alert...</option>` + 
+        unselectedTypes.map(t => `<option value="${t}">${EVENT_TYPE_DICTIONARY[t]}</option>`).join('');
+    }
+
+    function addSelectedNotificationToUser() {
+      const select = document.getElementById('userNotificationAddSelect');
+      const type = select.value;
+      if (!type) return;
+
+      if (!activeUserLinkedNotificationTypes.includes(type)) {
+        activeUserLinkedNotificationTypes.push(type);
+        renderUserNotificationsChips();
+        populateUserNotificationSelect();
+      }
+    }
+
+    function removeNotificationFromActiveUser(type) {
+      activeUserLinkedNotificationTypes = activeUserLinkedNotificationTypes.filter(t => t !== type);
+      renderUserNotificationsChips();
+      populateUserNotificationSelect();
+    }
+
+    function renderUserAttributeRow(key = '', val = '') {
+      const container = document.getElementById('userAttributesContainer');
+      const rowId = 'usr_attr_' + Math.random().toString(36).substr(2, 9);
+      const div = document.createElement('div');
+      div.id = rowId;
+      div.className = 'grid grid-cols-2 gap-2 items-center';
+      div.innerHTML = `
+        <input type="text" value="${key}" placeholder="Attribute key" class="form-input text-xs user-attr-key font-medium">
+        <div class="flex items-center gap-2">
+          <input type="text" value="${val}" placeholder="Value" class="w-full form-input text-xs user-attr-val font-medium">
+          <button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-slate-400 hover:text-red-600 p-1">
+            <i class="fa-solid fa-trash text-xs"></i>
+          </button>
+        </div>
+      `;
+      container.appendChild(div);
+    }
+
+    function addUserAttributeRow() {
+      renderUserAttributeRow('', '');
+    }
+
+    async function saveUserForm() {
+      const id = document.getElementById('userModalId').value;
+      const name = document.getElementById('userModalName').value.trim();
+      const rawUsername = document.getElementById('userModalEmail').value.trim();
+
+      if (!name || !rawUsername) {
+        alert('Customer Name and Username are required.');
+        return;
+      }
+
+      const username = rawUsername.replace(/\s+/g, '').replace(/[^a-zA-Z0-9._-]/g, '');
+
+      const attributes = {};
+      document.querySelectorAll('#userAttributesContainer div[id^="usr_attr_"]').forEach(row => {
+        const k = row.querySelector('.user-attr-key')?.value.trim();
+        const v = row.querySelector('.user-attr-val')?.value.trim();
+        if (k) attributes[k] = v;
+      });
+
+      attributes.notificationTypes = activeUserLinkedNotificationTypes;
+
+      const payload = {
+        name,
+        username,
+        email: username.includes('@') ? username : `${username}@fleet.local`,
+        phone: document.getElementById('userModalPhone').value.trim(),
+        deviceLimit: parseInt(document.getElementById('userModalDeviceLimit').value) || 10,
+        administrator: document.getElementById('userModalAdminCheck').checked,
+        attributes
+      };
+
+      const pass = document.getElementById('userModalPassword').value.trim();
+      if (pass) payload.password = pass;
+
+      showGlobalLoader('Saving User Profile...');
+
+      try {
+        const url = id ? `/api/users/${id}` : '/api/users';
+        const method = id ? 'PUT' : 'POST';
+        if (id) payload.id = parseInt(id);
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const savedUser = await res.json();
+          if (!id && savedUser.id && activeUserLinkedDeviceIds.length > 0) {
+            for (const dId of activeUserLinkedDeviceIds) {
+              await fetch('/api/permissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: savedUser.id, deviceId: dId })
+              }).catch(() => {});
+            }
+          }
+          closeUserModal();
+          loadUsers();
+          showToast(`User ${name} updated`);
+        } else {
+          alert('Could not save user profile. Check username uniqueness.');
+        }
+      } catch (e) {
+        alert('Transmission error to engine server');
+      } finally {
+        hideGlobalLoader();
+      }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm(`Permanently remove User ID: ${id}?`)) return;
+      showGlobalLoader('Deleting account...');
+      try {
+        const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadUsers();
+          showToast('User account deleted');
+        }
+      } catch (e) {} finally {
+        hideGlobalLoader();
+      }
+    }
+
+    // 11. Geofences, Groups, Ports & Billing
+    async function loadGeofencesAndGroups() {
+      try {
+        const [geoRes, grpRes] = await Promise.all([
+          fetch('/api/geofences'),
+          fetch('/api/groups')
+        ]);
+
+        if (geoRes.ok) {
+          allGeofences = await geoRes.json();
+          document.getElementById('geofenceCountBadge').innerText = allGeofences.length;
+          document.getElementById('geofenceItemsList').innerHTML = allGeofences.map(g => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
+              <div>
+                <strong class="text-black">${g.name}</strong>
+                <p class="text-[10px] text-slate-500 font-mono">${g.area ? g.area.substring(0, 32) + '...' : ''}</p>
+              </div>
+              <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold">Fence</span>
+            </div>
+          `).join('');
+        }
+
+        if (grpRes.ok) {
+          allGroups = await grpRes.json();
+          document.getElementById('groupCountBadge').innerText = allGroups.length;
+          document.getElementById('groupsItemsList').innerHTML = allGroups.map(g => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
+              <strong class="text-black">${g.name}</strong>
+              <span class="text-[10px] bg-black text-white px-2 py-0.5 rounded font-mono">ID: ${g.id}</span>
+            </div>
+          `).join('');
+        }
+      } catch (e) {}
+    }
+
+    async function loadPortsAndRecharge() {
+      try {
+        const [portRes, rechRes] = await Promise.all([
+          fetch('/api/server/supportedPorts'),
+          fetch('/api/users/getPointsRechargeOptions?pointType=DEVICE_POINTS')
+        ]);
+
+        if (portRes.ok) {
+          const ports = await portRes.json();
+          document.getElementById('portsGrid').innerHTML = ports.map(p => `
+            <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <strong class="text-black block truncate">${p.protocol || 'Protocol'}</strong>
+              <span class="text-[11px] text-red-600 font-mono font-bold">Port: ${p.port}</span>
+            </div>
+          `).join('');
+        }
+
+        if (rechRes.ok) {
+          document.getElementById('rechargeRawOutput').innerText = await rechRes.text();
+        }
+      } catch (e) {}
+    }
+
+    // 12. WebSocket Stream Bridge
+    function connectWebSocket() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${proto}//${window.location.host}/api/socketEvents`;
+
+      if (localSocket) localSocket.close();
+      localSocket = new WebSocket(wsUrl);
+
+      localSocket.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.positions || data.devices) {
+            loadTelemetryFeed();
+          }
+        } catch (err) {}
+      };
+
+      localSocket.onclose = () => {
+        setTimeout(connectWebSocket, 6000);
+      };
+    }
+
+    function togglePasswordVisibility(inputId) {
+      const input = document.getElementById(inputId);
+      const eye = document.getElementById(inputId + 'Eye');
+      if (input.type === 'password') {
+        input.type = 'text';
+        eye.className = 'fa-regular fa-eye';
+      } else {
+        input.type = 'password';
+        eye.className = 'fa-regular fa-eye-slash';
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastMessage');
+      document.getElementById('toastText').innerText = msg;
+      toast.classList.remove('opacity-0', 'translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-2');
+      }, 2500);
+    }
+
+    window.onload = () => {
+      checkAuthSession();
+    };
+  </script>
+</body>
+</html>
