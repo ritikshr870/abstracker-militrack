@@ -213,11 +213,12 @@ export function exportToXLSX(reportType, rawData, vehicle, metadata = {}) {
 }
 
 /**
- * Export data to exact High-Precision PDF matching provided format:
- * - Top metadata block with grid borders (Report Type, Period)
- * - Indigo #4F46E5 header row with crisp white text
- * - Clean black/slate grid lines across all cells
- * - Formatted distances, dates (YYYY-MM-DD HH:mm), and hours (HH:MM)
+ * Export data to exact Executive PDF with AbsTracker Branding:
+ * - Top Slate-900 / Red-600 decorative brand bar with AbsTracker logo & subtitle
+ * - Vehicle metadata and reporting date/time parameters
+ * - Executive KPI stat cards (Total Run, Total Time, Max Speed, Records)
+ * - Clean professional table with alternating fills and crisp lines
+ * - Confidentiality footer with page numbering
  */
 export function exportToPDF(reportType, rawData, vehicle, metadata = {}) {
   const rows = normalizeReportData(reportType, rawData, vehicle, metadata);
@@ -233,49 +234,109 @@ export function exportToPDF(reportType, rawData, vehicle, metadata = {}) {
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const primaryColor = [15, 23, 42]; // Slate-900
+  const accentBlue = [37, 99, 235]; // Blue-600
+  const brandRed = [220, 38, 38]; // Red-600
+  const emeraldGreen = [16, 185, 129]; // Emerald-500
+
+  // 1. Top Decorative Brand Bar
+  doc.setFillColor(...primaryColor);
+  doc.rect(0, 0, pageWidth, 58, 'F');
+
+  // Red accent bottom stripe
+  doc.setFillColor(...brandRed);
+  doc.rect(0, 55, pageWidth, 3, 'F');
+
+  // Brand Name (Line 1 at Y=28)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Abs', 36, 28);
+  const absWidth = doc.getTextWidth('Abs');
+  doc.setTextColor(...brandRed);
+  doc.text('Tracker', 36 + absWidth, 28);
+
+  // Subtitle (Line 2 at Y=44)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225); // Slate-300
+  doc.text('Enterprise Telematics & Fleet Intelligence', 36, 44);
+
+  // Right-aligned report type badge in header
+  const titleBadge = `${reportType.toUpperCase()} REPORT`;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text(titleBadge, pageWidth - 36 - doc.getTextWidth(titleBadge), 34);
+
+  // 2. Metadata Section
+  let currentY = 78;
+
+  const vehicleTitle = metadata.vehicleLabel || metadata.vehicleScope || vehicle?.name || 'Fleet Report';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(...primaryColor);
+  doc.text(vehicleTitle, 36, currentY);
 
   const fromFormatted = formatReportDateTime(metadata.from);
   const toFormatted = formatReportDateTime(metadata.to);
-  const periodText = `${fromFormatted} -\n${toFormatted}`;
-  const reportTypeTitle = reportType === 'summary' ? 'Summary' : (reportType === 'trips' ? 'Trips Route' : 'Stoppages');
+  const dateRangeStr = `Reporting Period: ${fromFormatted} to ${toFormatted} (${metadata.dateRange || 'Custom Period'})`;
 
-  // Top Metadata Grid Box matching screenshot
-  autoTable(doc, {
-    startY: 28,
-    margin: { left: 36 },
-    tableWidth: 260,
-    theme: 'grid',
-    styles: {
-      lineColor: [50, 50, 50],
-      lineWidth: 0.5,
-      textColor: [0, 0, 0],
-      fontSize: 8.5,
-      cellPadding: 4.5
-    },
-    body: [
-      ['Report Type:', reportTypeTitle],
-      ['Period:', periodText]
-    ],
-    columnStyles: {
-      0: { cellWidth: 80, fontStyle: 'bold', fillColor: [255, 255, 255] },
-      1: { cellWidth: 180, fillColor: [255, 255, 255] }
-    }
-  });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(dateRangeStr, 36, currentY + 14);
 
-  const tableStartY = (doc.lastAutoTable?.finalY || 60) + 12;
+  const genDateStr = `Generated: ${new Date().toLocaleString('en-IN')} | Total Records: ${rows.length}`;
+  doc.text(genDateStr, pageWidth - 36 - doc.getTextWidth(genDateStr), currentY + 14);
 
+  // 3. Executive KPI Metric Cards
+  if (metadata.kpis) {
+    currentY += 28;
+    const boxWidth = (pageWidth - 72 - 36) / 4;
+    const boxHeight = 44;
+
+    const statBoxes = [
+      { label: 'TOTAL RUN', val: metadata.kpis.totalKm ? `${metadata.kpis.totalKm} km` : '0 km', color: accentBlue },
+      { label: 'TOTAL DURATION', val: metadata.kpis.totalTime || '0 hrs', color: primaryColor },
+      { label: 'MAX SPEED', val: metadata.kpis.maxSpeed || '0 km/h', color: brandRed },
+      { label: 'TOTAL ENTRIES', val: String(rows.length), color: emeraldGreen }
+    ];
+
+    statBoxes.forEach((stat, i) => {
+      const bx = 36 + i * (boxWidth + 12);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(bx, currentY, boxWidth, boxHeight, 6, 6, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(stat.label, bx + 10, currentY + 15);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(...stat.color);
+      doc.text(stat.val, bx + 10, currentY + 34);
+    });
+
+    currentY += boxHeight + 16;
+  } else {
+    currentY += 26;
+  }
+
+  // 4. Data Table
   const tableHeaders = Object.keys(rows[0]);
   const tableData = rows.map(r => Object.values(r));
 
-  // Determine specific column styles for clean layout
   const colStyles = {};
   tableHeaders.forEach((h, idx) => {
     if (h === 'Vehicle Number') {
-      colStyles[idx] = { cellWidth: 90, fontStyle: 'normal', halign: 'left' };
+      colStyles[idx] = { cellWidth: 90, fontStyle: 'bold', halign: 'left' };
     } else if (h.includes('Date & Time') || h.includes('Time')) {
       colStyles[idx] = { cellWidth: 95, halign: 'left' };
     } else if (h === 'Distance') {
-      colStyles[idx] = { cellWidth: 65, halign: 'left' };
+      colStyles[idx] = { cellWidth: 65, halign: 'left', fontStyle: 'bold' };
     } else if (h.includes('Hours') || h.includes('Duration')) {
       colStyles[idx] = { cellWidth: 55, halign: 'center' };
     } else if (h.includes('Speed')) {
@@ -285,41 +346,39 @@ export function exportToPDF(reportType, rawData, vehicle, metadata = {}) {
     }
   });
 
-  // Main Grid Table with Indigo Header (#4F46E5) and clean borders
   autoTable(doc, {
     head: [tableHeaders],
     body: tableData,
-    startY: tableStartY,
+    startY: currentY,
     margin: { left: 36, right: 36, bottom: 35 },
     theme: 'grid',
     styles: {
-      lineColor: [50, 50, 50], // Crisp black grid line
+      lineColor: [226, 232, 240],
       lineWidth: 0.5,
       fontSize: 8,
-      textColor: [0, 0, 0],
+      textColor: [51, 65, 85],
       cellPadding: 4.5,
       font: 'helvetica'
     },
     headStyles: {
-      fillColor: [79, 70, 229], // #4F46E5 Vibrant Indigo matching user screenshot
+      fillColor: primaryColor,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       halign: 'left',
       fontSize: 8,
-      cellPadding: 5
+      cellPadding: 6
     },
     alternateRowStyles: {
-      fillColor: [255, 255, 255] // Clean white table body matching template
+      fillColor: [248, 250, 252]
     },
     columnStyles: colStyles,
-    didDrawPage: (data) => {
-      // Clean Footer on Every Page
+    didDrawPage: () => {
       const pageStr = `Page ${doc.internal.getNumberOfPages()}`;
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Powered by Abstracker Team • Enterprise Telematics', 36, pageHeight - 14);
-      doc.text(pageStr, pageWidth - 36 - doc.getTextWidth(pageStr), pageHeight - 14);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('AbsTracker Fleet Telematics Suite • Confidential Operational Record', 36, pageHeight - 16);
+      doc.text(pageStr, pageWidth - 36 - doc.getTextWidth(pageStr), pageHeight - 16);
     }
   });
 

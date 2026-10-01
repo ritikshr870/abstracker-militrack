@@ -6,52 +6,46 @@ import EngineControlModal from '../components/EngineControlModal';
 import ShareLiveTrackingModal from '../components/ShareLiveTrackingModal';
 import { Layers, Crosshair, Navigation, Navigation2, Share2, Key, Battery, Gauge, ChevronUp, ChevronDown, Power, Compass, MapPin, Copy, Check } from 'lucide-react';
 
+const CARTO_KEY = 'cb1_46td_1_0e579b70c224a3f9a3117650';
+
 const MAP_TILES = {
-  googleStreets: {
-    name: 'Google Streets HD (Detailed Roads & Places)',
-    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-    attribution: '&copy; Google Maps',
-    subdomains: ['0', '1', '2', '3'],
-    maxZoom: 21,
-    maxNativeZoom: 20
-  },
-  googleHybrid: {
-    name: 'Google Satellite & Roads HD',
-    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-    attribution: '&copy; Google Maps',
-    subdomains: ['0', '1', '2', '3'],
-    maxZoom: 21,
-    maxNativeZoom: 20
-  },
   cartoVoyager: {
-    name: 'CartoDB Detailed Places & Roads',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; CartoDB &copy; OpenStreetMap',
+    name: 'CartoDB Voyager HD (Detailed Places & Roads)',
+    url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
+    attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
     subdomains: ['a', 'b', 'c', 'd'],
     maxZoom: 20,
     maxNativeZoom: 19
   },
-  traveltime: {
-    name: 'TravelTime Detailed Bright',
-    url: 'https://tiles.traveltimeapp.com/osm-bright/{z}/{x}/{y}.png?key=4b4350ea',
-    attribution: '&copy; TravelTime &copy; OpenStreetMap',
-    subdomains: [],
-    maxZoom: 19,
+  cartoPositron: {
+    name: 'CartoDB Positron (Clean Light HD)',
+    url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
+    attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+    subdomains: ['a', 'b', 'c', 'd'],
+    maxZoom: 20,
     maxNativeZoom: 19
   },
-  esriStreets: {
-    name: 'Esri World Navigation',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; Esri &mdash; Street Map HD',
-    subdomains: [],
+  cartoDark: {
+    name: 'CartoDB Dark Matter (Dark Fleet HD)',
+    url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
+    attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+    subdomains: ['a', 'b', 'c', 'd'],
     maxZoom: 20,
     maxNativeZoom: 19
   },
   osm: {
-    name: 'OpenStreetMap Atlas',
+    name: 'OpenStreetMap Standard Atlas',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
     subdomains: ['a', 'b', 'c'],
+    maxZoom: 19,
+    maxNativeZoom: 19
+  },
+  esriSatellite: {
+    name: 'Esri World Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; Esri &mdash; World Imagery',
+    subdomains: [],
     maxZoom: 19,
     maxNativeZoom: 19
   }
@@ -71,7 +65,7 @@ export default function LiveMapPage() {
   const tileLayerRef = useRef(null);
   const markersRef = useRef({});
 
-  const [activeTile, setActiveTile] = useState('googleStreets');
+  const [activeTile, setActiveTile] = useState('cartoVoyager');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
   const [isSheetExpanded, setIsSheetExpanded] = useState(true); // Expanded by default to show detailed location

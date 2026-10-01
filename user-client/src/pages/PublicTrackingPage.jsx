@@ -26,28 +26,46 @@ function formatRemainingTime(expMs) {
   return `${mins}m left`;
 }
 
+const CARTO_KEY = 'cb1_46td_1_0e579b70c224a3f9a3117650';
+
 const MAP_TILES = {
-  googleStreets: {
-    id: 'googleStreets',
-    name: 'Google Streets HD',
-    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-    subdomains: ['0', '1', '2', '3'],
-    maxZoom: 21,
-    maxNativeZoom: 20
+  cartoVoyager: {
+    id: 'cartoVoyager',
+    name: 'CartoDB Voyager HD (Detailed Places & Roads)',
+    url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
+    subdomains: ['a', 'b', 'c', 'd'],
+    maxZoom: 20,
+    maxNativeZoom: 19
   },
-  googleHybrid: {
-    id: 'googleHybrid',
-    name: 'Google Satellite Hybrid',
-    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-    subdomains: ['0', '1', '2', '3'],
-    maxZoom: 21,
-    maxNativeZoom: 20
+  cartoPositron: {
+    id: 'cartoPositron',
+    name: 'CartoDB Positron (Clean Light HD)',
+    url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
+    subdomains: ['a', 'b', 'c', 'd'],
+    maxZoom: 20,
+    maxNativeZoom: 19
+  },
+  cartoDark: {
+    id: 'cartoDark',
+    name: 'CartoDB Dark Matter (Dark Fleet HD)',
+    url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
+    subdomains: ['a', 'b', 'c', 'd'],
+    maxZoom: 20,
+    maxNativeZoom: 19
   },
   osm: {
     id: 'osm',
-    name: 'OpenStreetMap',
+    name: 'OpenStreetMap Standard Atlas',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     subdomains: ['a', 'b', 'c'],
+    maxZoom: 19,
+    maxNativeZoom: 19
+  },
+  esriSatellite: {
+    id: 'esriSatellite',
+    name: 'Esri World Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    subdomains: [],
     maxZoom: 19,
     maxNativeZoom: 19
   }
@@ -93,7 +111,7 @@ export default function PublicTrackingPage() {
   const [error, setError] = useState(null);
   const [isExpired, setIsExpired] = useState(() => expTimestamp ? Date.now() > expTimestamp : false);
   const [copied, setCopied] = useState(false);
-  const [activeTile, setActiveTile] = useState('googleStreets');
+  const [activeTile, setActiveTile] = useState('cartoVoyager');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
 
   const mapContainerRef = useRef(null);
