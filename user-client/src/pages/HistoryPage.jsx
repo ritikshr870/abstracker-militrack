@@ -36,13 +36,12 @@ export default function HistoryPage() {
     });
     mapRef.current = map;
 
-    // CartoDB Voyager HD - Full Detailed Roads, Villages, Landmarks & Small Places
-    const cartoKey = 'cb1_46td_1_0e579b70c224a3f9a3117650';
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${cartoKey}`, {
-      maxZoom: 20,
-      maxNativeZoom: 19,
-      subdomains: ['a', 'b', 'c', 'd'],
-      attribution: '&copy; CARTO &copy; OpenStreetMap contributors'
+    // Google Streets HD - Full Detailed Roads, Villages, Landmarks & Small Places
+    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 21,
+      maxNativeZoom: 20,
+      subdomains: ['0', '1', '2', '3'],
+      attribution: '&copy; Google Maps'
     }).addTo(map);
 
     // Guaranteed tile rendering: invalidateSize at 100ms, 300ms, and 800ms

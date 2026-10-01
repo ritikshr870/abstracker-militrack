@@ -7,29 +7,20 @@ import {
 } from 'lucide-react';
 import { createDirectionalVehicleIcon, calculateBearing } from './VehicleIcons';
 
-const CARTO_KEY = 'cb1_46td_1_0e579b70c224a3f9a3117650';
-
 const TILE_PROVIDERS = {
-  cartoVoyager: {
-    name: 'CartoDB Voyager HD (Detailed Places & Roads)',
-    url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
-    subdomains: ['a', 'b', 'c', 'd'],
-    maxZoom: 20,
-    attribution: '&copy; CARTO &copy; OpenStreetMap contributors'
+  googleStreets: {
+    name: 'Google Streets HD (Full Roads & Places)',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    attribution: '&copy; Google Maps'
   },
-  cartoPositron: {
-    name: 'CartoDB Positron (Clean Light HD)',
-    url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
-    subdomains: ['a', 'b', 'c', 'd'],
-    maxZoom: 20,
-    attribution: '&copy; CARTO &copy; OpenStreetMap contributors'
-  },
-  cartoDark: {
-    name: 'CartoDB Dark Matter (Dark Fleet HD)',
-    url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`,
-    subdomains: ['a', 'b', 'c', 'd'],
-    maxZoom: 20,
-    attribution: '&copy; CARTO &copy; OpenStreetMap contributors'
+  googleHybrid: {
+    name: 'Google Satellite & Roads HD',
+    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    attribution: '&copy; Google Maps'
   },
   osm: {
     name: 'OpenStreetMap Standard Atlas',
@@ -37,13 +28,6 @@ const TILE_PROVIDERS = {
     subdomains: ['a', 'b', 'c'],
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors'
-  },
-  esriSatellite: {
-    name: 'Esri World Satellite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    subdomains: [],
-    maxZoom: 19,
-    attribution: '&copy; Esri &mdash; World Satellite Imagery'
   }
 };
 
@@ -145,7 +129,7 @@ function interpolatePoints(start, end, count = 120) {
 }
 
 export default function TripLivePreviewModal({ data, onClose }) {
-  const [activeLayer, setActiveLayer] = useState('cartoVoyager');
+  const [activeLayer, setActiveLayer] = useState('googleStreets');
   const [copied, setCopied] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
