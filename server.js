@@ -2850,9 +2850,44 @@ app.get('/api/users/getPointsRechargeOptions', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 12.5 PUBLIC LIVE TRACKING ENDPOINT (Link sharing with expiration)
+// 12.5 PUBLIC LIVE TRACKING & SHARING ENGINE (Link sharing with expiration)
 // ---------------------------------------------------------------------------
 
+const publicSharesMap = new Map();
+
+// Register a newly shared vehicle with instant snapshot caching
+app.post('/api/public/share', express.json(), (req, res) => {
+  try {
+    const { deviceId, device, position, exp } = req.body || {};
+    if (!deviceId) return res.status(400).json({ error: 'Device ID is required' });
+
+    const idStr = String(deviceId);
+    publicSharesMap.set(idStr, {
+      device: device || { id: Number(deviceId), name: 'Vehicle' },
+      position: position || null,
+      exp: exp ? Number(exp) : null,
+      updatedAt: Date.now()
+    });
+
+    // Also update telemetry cache in memory
+    if (device && Array.isArray(telemetryCache.devices)) {
+      const idx = telemetryCache.devices.findIndex(d => String(d.id) === idStr || d.uniqueId === idStr);
+      if (idx >= 0) telemetryCache.devices[idx] = { ...telemetryCache.devices[idx], ...device };
+      else telemetryCache.devices.push(device);
+    }
+    if (position && Array.isArray(telemetryCache.positions)) {
+      const pIdx = telemetryCache.positions.findIndex(p => String(p.deviceId) === idStr);
+      if (pIdx >= 0) telemetryCache.positions[pIdx] = { ...telemetryCache.positions[pIdx], ...position };
+      else telemetryCache.positions.push(position);
+    }
+
+    return res.json({ success: true, registered: idStr });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Guest endpoint for public live vehicle tracking
 app.get('/api/public/track/:deviceId', async (req, res) => {
   const { deviceId } = req.params;
   const exp = req.query.exp ? Number(req.query.exp) : null;
@@ -2861,21 +2896,35 @@ app.get('/api/public/track/:deviceId', async (req, res) => {
     return res.status(410).json({ error: 'This live tracking link has expired.', expired: true });
   }
 
-  const id = Number(deviceId);
-  let device = telemetryCache.devices.find(d => d.id === id);
-  let position = telemetryCache.positions.find(p => p.deviceId === id);
+  const idStr = String(deviceId);
+  const idNum = Number(deviceId);
+  const sharedSnapshot = publicSharesMap.get(idStr);
 
-  if (!device || !position) {
-    try {
-      const auth = distributorSession.basicAuth || sessionState.basicAuth;
-      const [dRes, pRes] = await Promise.all([
-        axios.get(`${MILLITRACK_HOST}/api/devices?id=${id}`, { headers: { Authorization: auth }, timeout: 5000 }).catch(() => ({ data: [] })),
-        axios.get(`${MILLITRACK_HOST}/api/positions?deviceId=${id}`, { headers: { Authorization: auth }, timeout: 5000 }).catch(() => ({ data: [] }))
-      ]);
-      if (Array.isArray(dRes.data) && dRes.data[0]) device = dRes.data[0];
-      if (Array.isArray(pRes.data) && pRes.data[0]) position = pRes.data[0];
-    } catch (e) {}
-  }
+  let device = (Array.isArray(telemetryCache.devices) && telemetryCache.devices.find(d => d.id === idNum || String(d.id) === idStr || d.uniqueId === idStr))
+    || sharedSnapshot?.device;
+
+  let position = (Array.isArray(telemetryCache.positions) && telemetryCache.positions.find(p => p.deviceId === idNum || String(p.deviceId) === idStr || (device && (p.deviceId === device.id || p.id === device.positionId))))
+    || sharedSnapshot?.position;
+
+  // Attempt live upstream refresh
+  try {
+    await ensureDistributorSession();
+    const upstreamHeaders = getRequestUpstreamHeaders(req);
+    const [dRes, pRes] = await Promise.all([
+      axios.get(`${MILLITRACK_HOST}/api/devices?uniqueId=${device?.uniqueId || deviceId}`, { headers: upstreamHeaders, timeout: 5000 }).catch(() => ({ data: [] })),
+      axios.get(`${MILLITRACK_HOST}/api/positions?deviceId=${device?.id || idNum}`, { headers: upstreamHeaders, timeout: 5000 }).catch(() => ({ data: [] }))
+    ]);
+    if (Array.isArray(dRes.data) && dRes.data[0]) {
+      device = dRes.data[0];
+      const idx = telemetryCache.devices.findIndex(d => d.id === device.id);
+      if (idx >= 0) telemetryCache.devices[idx] = device; else telemetryCache.devices.push(device);
+    }
+    if (Array.isArray(pRes.data) && pRes.data[0]) {
+      position = pRes.data[0];
+      const pIdx = telemetryCache.positions.findIndex(p => p.deviceId === (position.deviceId || device?.id || idNum));
+      if (pIdx >= 0) telemetryCache.positions[pIdx] = position; else telemetryCache.positions.push(position);
+    }
+  } catch (e) {}
 
   if (!device && !position) {
     return res.status(404).json({ error: 'Vehicle not found or inactive' });
@@ -2883,7 +2932,7 @@ app.get('/api/public/track/:deviceId', async (req, res) => {
 
   return res.json({
     device: {
-      id: device?.id || id,
+      id: device?.id || idNum,
       name: device?.name || 'Vehicle',
       uniqueId: device?.uniqueId || '',
       status: device?.status || 'stopped',

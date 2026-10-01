@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import axios from 'axios';
 import { createDirectionalVehicleIcon, VehicleCategoryIcon } from '../components/VehicleIcons';
-import { Gauge, Key, Battery, Navigation, Clock, ShieldAlert, Copy, Check, Compass, AlertCircle, RefreshCw } from 'lucide-react';
+import { Gauge, Key, Battery, Navigation, Clock, ShieldAlert, Copy, Check, Compass, AlertCircle, Layers, RefreshCw } from 'lucide-react';
 
 function getCardinalDirection(deg) {
   if (typeof deg !== 'number' || isNaN(deg)) return 'N';
@@ -26,6 +26,33 @@ function formatRemainingTime(expMs) {
   return `${mins}m left`;
 }
 
+const MAP_TILES = {
+  googleStreets: {
+    id: 'googleStreets',
+    name: 'Google Streets HD',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    maxNativeZoom: 20
+  },
+  googleHybrid: {
+    id: 'googleHybrid',
+    name: 'Google Satellite Hybrid',
+    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    maxNativeZoom: 20
+  },
+  osm: {
+    id: 'osm',
+    name: 'OpenStreetMap',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    subdomains: ['a', 'b', 'c'],
+    maxZoom: 19,
+    maxNativeZoom: 19
+  }
+};
+
 export default function PublicTrackingPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -33,27 +60,56 @@ export default function PublicTrackingPage() {
   const expParam = searchParams.get('exp');
   const expTimestamp = expParam ? Number(expParam) : null;
   const initialName = searchParams.get('name') || 'Vehicle';
+  const initialLat = searchParams.get('lat') ? parseFloat(searchParams.get('lat')) : null;
+  const initialLng = searchParams.get('lng') ? parseFloat(searchParams.get('lng')) : null;
+  const initialSpeed = searchParams.get('speed') ? parseInt(searchParams.get('speed'), 10) : 0;
+  const initialStatus = searchParams.get('status') || 'stopped';
+  const initialCourse = searchParams.get('course') ? parseInt(searchParams.get('course'), 10) : 0;
+  const initialCat = searchParams.get('cat') || 'car';
+  const initialAddr = searchParams.get('addr') || '';
 
-  const [vehicle, setVehicle] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize vehicle immediately if coordinates are passed via URL snapshot
+  const [vehicle, setVehicle] = useState(() => {
+    if (initialLat && initialLng && !isNaN(initialLat) && !isNaN(initialLng)) {
+      return {
+        id: id,
+        name: initialName,
+        category: initialCat,
+        status: initialStatus,
+        latitude: initialLat,
+        longitude: initialLng,
+        speed: initialSpeed,
+        course: initialCourse,
+        ignition: initialStatus === 'running' || initialStatus === 'idle',
+        battery: 100,
+        address: initialAddr || 'Live GPS Coordinates',
+        updatedAt: new Date().toISOString()
+      };
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState(() => !vehicle);
   const [error, setError] = useState(null);
   const [isExpired, setIsExpired] = useState(() => expTimestamp ? Date.now() > expTimestamp : false);
   const [copied, setCopied] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState(new Date());
+  const [activeTile, setActiveTile] = useState('googleStreets');
+  const [showLayerMenu, setShowLayerMenu] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const tileLayerRef = useRef(null);
+  const hasCenteredInitialRef = useRef(false);
 
-  // Check expiration immediately
+  // Check expiration status
   useEffect(() => {
     if (expTimestamp && Date.now() > expTimestamp) {
       setIsExpired(true);
     }
   }, [expTimestamp]);
 
-  // Fetch public vehicle position
+  // Fetch public vehicle live position from server
   const fetchPublicVehicle = async () => {
     if (isExpired) return;
 
@@ -86,30 +142,33 @@ export default function PublicTrackingPage() {
           status = 'stopped';
         }
 
-        setVehicle({
-          id: d.id,
-          name: d.name || initialName,
-          category: d.category || 'car',
+        const newLat = p.latitude || vehicle?.latitude || initialLat || 25.6528;
+        const newLng = p.longitude || vehicle?.longitude || initialLng || 84.969;
+
+        setVehicle(prev => ({
+          id: d.id || id,
+          name: d.name || prev?.name || initialName,
+          category: d.category || prev?.category || 'car',
           status,
-          latitude: p.latitude || 25.6528,
-          longitude: p.longitude || 84.969,
+          latitude: newLat,
+          longitude: newLng,
           speed: speedKmh,
           course: p.course || 0,
           ignition: attrs.ignition === true,
           battery: attrs.batteryLevel || p.battery || 100,
-          address: p.address || 'Live GPS Location',
+          address: p.address || prev?.address || initialAddr || 'Live GPS Location',
           updatedAt: p.deviceTime || p.serverTime || new Date().toISOString()
-        });
-        setLastRefreshed(new Date());
+        }));
+
         setError(null);
-      } else {
-        setError(res.data?.error || 'Unable to locate vehicle');
+      } else if (!vehicle) {
+        setError(res.data?.error || 'Vehicle temporarily unavailable');
       }
     } catch (err) {
       if (err.response?.status === 410) {
         setIsExpired(true);
       } else if (!vehicle) {
-        setError('Failed to connect to telematics server.');
+        setError('Connection interrupted. Retrying live feed...');
       }
     } finally {
       setLoading(false);
@@ -118,38 +177,51 @@ export default function PublicTrackingPage() {
 
   useEffect(() => {
     fetchPublicVehicle();
-    const interval = setInterval(fetchPublicVehicle, 7000);
+    const interval = setInterval(fetchPublicVehicle, 5000);
     return () => clearInterval(interval);
   }, [id, isExpired]);
 
-  // Leaflet Map Initialization
+  // Reverse geocode fallback if address is missing
+  useEffect(() => {
+    if (vehicle?.latitude && vehicle?.longitude && (!vehicle.address || vehicle.address === 'Live GPS Location' || vehicle.address === 'Live GPS Coordinates')) {
+      axios.get(`/api/map/reverse-geocode?lat=${vehicle.latitude}&lng=${vehicle.longitude}`)
+        .then(res => {
+          if (res.data?.address) {
+            setVehicle(prev => prev ? { ...prev, address: res.data.address } : prev);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [vehicle?.latitude, vehicle?.longitude]);
+
+  // Leaflet Map Initialization - Guarantees container is rendered and tiles load immediately
   useEffect(() => {
     if (!mapContainerRef.current || isExpired) return;
 
     if (!mapRef.current) {
-      const defaultLat = vehicle?.latitude || 25.6528;
-      const defaultLng = vehicle?.longitude || 84.969;
+      const startLat = vehicle?.latitude || initialLat || 25.6528;
+      const startLng = vehicle?.longitude || initialLng || 84.969;
 
       const map = L.map(mapContainerRef.current, {
-        center: [defaultLat, defaultLng],
+        center: [startLat, startLng],
         zoom: 16,
         zoomControl: false,
         attributionControl: false
       });
       mapRef.current = map;
 
-      // Google Streets HD - Full Detailed Roads, Villages, Landmarks & Small Places
-      tileLayerRef.current = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-        maxZoom: 21,
-        maxNativeZoom: 20,
-        subdomains: ['0', '1', '2', '3'],
-        attribution: '&copy; Google Maps'
+      // Google Streets HD Tile Layer
+      const tileConf = MAP_TILES[activeTile] || MAP_TILES.googleStreets;
+      tileLayerRef.current = L.tileLayer(tileConf.url, {
+        maxZoom: tileConf.maxZoom || 21,
+        maxNativeZoom: tileConf.maxNativeZoom || 20,
+        subdomains: tileConf.subdomains || ['0', '1', '2', '3']
       }).addTo(map);
 
-      // Guaranteed tile rendering: invalidateSize at 100ms, 300ms, and 800ms
-      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 100);
-      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 300);
-      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 800);
+      // Force instant tile size calculations to prevent blank white areas
+      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 60);
+      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 250);
+      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 700);
     }
 
     const resizeObserver = new ResizeObserver(() => {
@@ -161,14 +233,30 @@ export default function PublicTrackingPage() {
 
     return () => {
       resizeObserver.disconnect();
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
     };
   }, [isExpired]);
 
-  // Update map marker when vehicle coordinates update
+  // Handle Tile Switching
+  const handleTileChange = (tileKey) => {
+    setActiveTile(tileKey);
+    setShowLayerMenu(false);
+    if (!mapRef.current) return;
+
+    if (tileLayerRef.current) {
+      mapRef.current.removeLayer(tileLayerRef.current);
+    }
+
+    const tileConf = MAP_TILES[tileKey] || MAP_TILES.googleStreets;
+    tileLayerRef.current = L.tileLayer(tileConf.url, {
+      maxZoom: tileConf.maxZoom || 21,
+      maxNativeZoom: tileConf.maxNativeZoom || 20,
+      subdomains: tileConf.subdomains || ['0', '1', '2', '3']
+    }).addTo(mapRef.current);
+
+    setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 100);
+  };
+
+  // Update vehicle directional marker
   useEffect(() => {
     if (!mapRef.current || !vehicle?.latitude || !vehicle?.longitude) return;
 
@@ -185,10 +273,16 @@ export default function PublicTrackingPage() {
     if (!markerRef.current) {
       markerRef.current = L.marker([vehicle.latitude, vehicle.longitude], { icon }).addTo(map);
       map.setView([vehicle.latitude, vehicle.longitude], 16, { animate: true });
+      hasCenteredInitialRef.current = true;
     } else {
       markerRef.current.setLatLng([vehicle.latitude, vehicle.longitude]);
       markerRef.current.setIcon(icon);
-      map.panTo([vehicle.latitude, vehicle.longitude], { animate: true, duration: 0.6 });
+      if (!hasCenteredInitialRef.current) {
+        map.setView([vehicle.latitude, vehicle.longitude], 16, { animate: true });
+        hasCenteredInitialRef.current = true;
+      } else {
+        map.panTo([vehicle.latitude, vehicle.longitude], { animate: true, duration: 0.6 });
+      }
     }
   }, [vehicle]);
 
@@ -204,52 +298,23 @@ export default function PublicTrackingPage() {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${vehicle.latitude},${vehicle.longitude}`, '_blank');
   };
 
-  // 1. Expired Link State
+  // 1. Expired Link Screen (100% Professional English)
   if (isExpired) {
     return (
       <div className="fixed inset-0 w-full h-full bg-slate-900 flex items-center justify-center p-4 select-none font-sans text-white">
-        <div className="bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-3xl p-7 sm:p-9 max-w-sm w-full text-center space-y-4 shadow-2xl animate-slideUp">
+        <div className="bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-3xl p-7 sm:p-9 max-w-sm w-full text-center space-y-4 shadow-2xl animate-slideUp">
           <div className="w-16 h-16 mx-auto rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/10">
             <ShieldAlert size={32} />
           </div>
           <div>
             <h2 className="text-lg font-black text-white">Tracking Link Expired</h2>
-            <p className="text-xs text-slate-400 font-medium mt-1 leading-relaxed">
-              Yeh live tracking link expire ho chuka hai. Kripya gaadi ke owner se naya link generate karne ko kahein.
+            <p className="text-xs text-slate-400 font-medium mt-1.5 leading-relaxed">
+              This live tracking link has expired. Please contact the vehicle owner or fleet administrator to generate a new tracking link.
             </p>
           </div>
-          <div className="pt-2 border-t border-slate-700/60 text-xs text-slate-500 font-medium">
+          <div className="pt-3 border-t border-slate-700/60 text-xs text-slate-500 font-medium">
             AbsTracker Telematics Suite • Powered by Abstracker Team
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Loading State
-  if (loading && !vehicle) {
-    return (
-      <div className="fixed inset-0 w-full h-full bg-slate-900 flex flex-col items-center justify-center text-white space-y-3 font-sans">
-        <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs font-bold text-slate-300">Connecting to {initialName}...</p>
-      </div>
-    );
-  }
-
-  // 3. Error State
-  if (error && !vehicle) {
-    return (
-      <div className="fixed inset-0 w-full h-full bg-slate-900 flex items-center justify-center p-4 select-none font-sans text-white">
-        <div className="bg-slate-800/90 border border-white/10 rounded-3xl p-7 max-w-sm w-full text-center space-y-3 shadow-2xl">
-          <AlertCircle size={36} className="text-amber-500 mx-auto" />
-          <h3 className="text-base font-black">Vehicle Inactive</h3>
-          <p className="text-xs text-slate-400">{error}</p>
-          <button 
-            onClick={fetchPublicVehicle}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-bold transition cursor-pointer"
-          >
-            Retry Connection
-          </button>
         </div>
       </div>
     );
@@ -282,28 +347,84 @@ export default function PublicTrackingPage() {
           </div>
         </div>
 
-        {/* Link Expiration Pill */}
+        {/* Link Expiry Pill */}
         <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md text-white border border-slate-700 rounded-2xl px-3 py-1.5 shadow-md flex items-center gap-1.5 text-xs font-bold">
           <Clock size={13} className="text-amber-400" />
           <span className="font-mono text-[11px]">{formatRemainingTime(expTimestamp)}</span>
         </div>
       </div>
 
-      {/* Fullscreen Map Canvas */}
+      {/* Fullscreen Map Canvas - Mounted permanently to prevent blank screen */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* Floating Re-center Button */}
-      <button
-        onClick={() => {
-          if (mapRef.current && vehicle?.latitude) {
-            mapRef.current.setView([vehicle.latitude, vehicle.longitude], 16, { animate: true });
-          }
-        }}
-        className="absolute top-18 right-3 z-20 w-11 h-11 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:text-blue-600 transition cursor-pointer"
-        title="Center Vehicle"
-      >
-        <Navigation size={18} />
-      </button>
+      {/* Floating Action Controls (Center & Layer Switcher) */}
+      <div className="absolute top-18 right-3 z-20 flex flex-col gap-2">
+        <button
+          onClick={() => {
+            if (mapRef.current && vehicle?.latitude && vehicle?.longitude) {
+              mapRef.current.setView([vehicle.latitude, vehicle.longitude], 16, { animate: true });
+            }
+          }}
+          className="w-11 h-11 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:text-blue-600 transition cursor-pointer"
+          title="Center Vehicle"
+        >
+          <Navigation size={18} />
+        </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setShowLayerMenu(!showLayerMenu)}
+            className="w-11 h-11 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:text-blue-600 transition cursor-pointer"
+            title="Switch Map Layer"
+          >
+            <Layers size={18} />
+          </button>
+
+          {showLayerMenu && (
+            <div className="absolute right-0 top-13 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 w-48 space-y-1 animate-fadeIn z-30">
+              <span className="text-[10px] font-bold text-slate-400 uppercase px-2 block">Map Layers</span>
+              {Object.values(MAP_TILES).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => handleTileChange(t.id)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                    activeTile === t.id ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{t.name}</span>
+                  {activeTile === t.id && <Check size={14} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Loading Overlay (Non-blocking map underneath) */}
+      {loading && !vehicle && (
+        <div className="absolute inset-0 z-40 bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-3 font-sans">
+          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs font-bold text-slate-300">Connecting to {initialName}...</p>
+        </div>
+      )}
+
+      {/* Error Overlay (Non-blocking) */}
+      {error && !vehicle && (
+        <div className="absolute inset-0 z-40 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 select-none font-sans text-white">
+          <div className="bg-slate-800/95 border border-white/10 rounded-3xl p-7 max-w-sm w-full text-center space-y-3 shadow-2xl">
+            <AlertCircle size={36} className="text-amber-500 mx-auto" />
+            <h3 className="text-base font-black">Vehicle Temporarily Unavailable</h3>
+            <p className="text-xs text-slate-400">{error}</p>
+            <button 
+              onClick={fetchPublicVehicle}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 mx-auto"
+            >
+              <RefreshCw size={13} />
+              <span>Retry Connection</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Live Tracking Vehicle Card */}
       {vehicle && (
@@ -380,7 +501,7 @@ export default function PublicTrackingPage() {
                 <div className="flex-1 min-w-0">
                   <span className="text-[10px] font-bold text-slate-400 block uppercase">Current Landmark &amp; Address</span>
                   <p className="font-semibold text-slate-800 text-[11px] leading-snug mt-0.5">
-                    {vehicle.address}
+                    {vehicle.address || 'Locating current street and landmark...'}
                   </p>
                 </div>
                 <button

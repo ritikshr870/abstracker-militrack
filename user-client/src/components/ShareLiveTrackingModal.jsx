@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Share2, Clock, Copy, Check, MessageSquare, ExternalLink, X, ShieldCheck } from 'lucide-react';
 
 const VALIDITY_OPTIONS = [
@@ -19,12 +20,53 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
   const option = VALIDITY_OPTIONS.find(o => o.key === selectedValidity) || VALIDITY_OPTIONS[2];
   const expiryTimestamp = option.ms > 0 ? Date.now() + option.ms : 0;
 
-  // Generate public tracking link with hash router
+  // Immediately register public share snapshot with server cache
+  useEffect(() => {
+    if (vehicle?.id) {
+      axios.post('/api/public/share', {
+        deviceId: vehicle.id,
+        device: vehicle.rawDevice || {
+          id: vehicle.id,
+          name: vehicle.name,
+          category: vehicle.category,
+          status: vehicle.status,
+          uniqueId: vehicle.uniqueId
+        },
+        position: vehicle.rawPosition || {
+          deviceId: vehicle.id,
+          latitude: vehicle.latitude,
+          longitude: vehicle.longitude,
+          speed: vehicle.speed,
+          course: vehicle.course,
+          address: vehicle.address,
+          attributes: {
+            ignition: vehicle.ignition,
+            batteryLevel: vehicle.battery
+          }
+        },
+        exp: expiryTimestamp
+      }).catch(() => {});
+    }
+  }, [vehicle, expiryTimestamp]);
+
+  // Generate public tracking link with hash router & instantaneous payload params
   const baseUrl = window.location.origin + window.location.pathname;
   const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  const shareUrl = expiryTimestamp > 0
-    ? `${cleanBase}/#/track/${vehicle.id}?exp=${expiryTimestamp}&name=${encodeURIComponent(vehicle.name)}`
-    : `${cleanBase}/#/track/${vehicle.id}?name=${encodeURIComponent(vehicle.name)}`;
+  
+  const params = new URLSearchParams();
+  if (expiryTimestamp > 0) params.set('exp', String(expiryTimestamp));
+  params.set('name', vehicle.name || 'Vehicle');
+  if (vehicle.latitude && vehicle.longitude) {
+    params.set('lat', String(vehicle.latitude));
+    params.set('lng', String(vehicle.longitude));
+  }
+  if (vehicle.speed !== undefined) params.set('speed', String(vehicle.speed));
+  if (vehicle.status) params.set('status', String(vehicle.status));
+  if (vehicle.course !== undefined) params.set('course', String(vehicle.course));
+  if (vehicle.category) params.set('cat', String(vehicle.category));
+  if (vehicle.address && vehicle.address !== 'Address updating...') params.set('addr', vehicle.address);
+
+  const shareUrl = `${cleanBase}/#/track/${vehicle.id}?${params.toString()}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -86,10 +128,10 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
           <div className="space-y-2">
             <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
               <Clock size={14} className="text-blue-600" />
-              <span>Link kab tak valid rehna chaiye?</span>
+              <span>Link Validity Period</span>
             </label>
             <p className="text-[11px] text-slate-500">
-              Is samay ke baad link automatically expire ho jayega aur location band ho jayegi.
+              The tracking link will automatically expire after this period and access will be revoked.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
