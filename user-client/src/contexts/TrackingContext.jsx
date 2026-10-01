@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { api, WS_BASE_URL } from '../api/client';
 import { useAuth } from './AuthContext';
+import { sendPushNotification } from '../utils/notificationManager';
 
 const TrackingContext = createContext(null);
 
@@ -186,6 +187,15 @@ export function TrackingProvider({ children }) {
                 };
               });
               playAlertSound();
+              incoming.forEach(alertItem => {
+                try {
+                  sendPushNotification(alertItem.title, {
+                    body: `${alertItem.vehicleName}: ${alertItem.message}`,
+                    tag: alertItem.id,
+                    url: '/app/alerts'
+                  });
+                } catch (e) {}
+              });
               setAlerts(prev => {
                 const combined = [...incoming, ...prev].slice(0, 100);
                 try { localStorage.setItem('abstracker_client_alerts', JSON.stringify(combined)); } catch {}

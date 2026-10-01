@@ -1,0 +1,27 @@
+{
+  "id": "/app",
+  "name": "AbsTracker - GPS Vehicle Tracking",
+  "short_name": "AbsTracker",
+  "description": "Enterprise Live Vehicle GPS Tracking & Fleet Security Platform",
+  "start_url": "/app/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090d16",
+  "theme_color": "#2563eb",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "https://ik.imagekit.io/xgxpgvop9/abstracker.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://ik.imagekit.io/xgxpgvop9/abstracker.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

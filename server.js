@@ -101,6 +101,47 @@ app.use('/vehicles', express.static(path.join(__dirname, 'client', 'public', 've
 app.use('/app/vehicles', express.static(path.join(__dirname, 'user-client', 'public', 'vehicles')));
 app.use('/user/vehicles', express.static(path.join(__dirname, 'user-client', 'public', 'vehicles')));
 
+// Service Worker & PWA Manifest routing
+app.get('/sw.js', (req, res) => {
+  const swDist = path.join(__dirname, 'user-client', 'dist', 'sw.js');
+  const swPublic = path.join(__dirname, 'user-client', 'public', 'sw.js');
+  const target = fs.existsSync(swDist) ? swDist : swPublic;
+  if (fs.existsSync(target)) {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Service-Worker-Allowed', '/');
+    return res.sendFile(target);
+  }
+  res.status(404).end();
+});
+
+app.get('/manifest.json', (req, res) => {
+  const mfDist = path.join(__dirname, 'user-client', 'dist', 'manifest.json');
+  const mfPublic = path.join(__dirname, 'user-client', 'public', 'manifest.json');
+  const target = fs.existsSync(mfDist) ? mfDist : mfPublic;
+  if (fs.existsSync(target)) {
+    res.setHeader('Content-Type', 'application/manifest+json');
+    return res.sendFile(target);
+  }
+  res.status(404).end();
+});
+
+// Direct APK Download Endpoint
+const downloadsDir = path.join(__dirname, 'downloads');
+if (!fs.existsSync(downloadsDir)) {
+  try { fs.mkdirSync(downloadsDir, { recursive: true }); } catch (e) {}
+}
+app.use('/downloads', express.static(downloadsDir));
+
+app.get(['/downloads/abstracker.apk', '/download/apk', '/app/download/apk'], (req, res) => {
+  const apkPath = path.join(downloadsDir, 'abstracker.apk');
+  if (fs.existsSync(apkPath)) {
+    return res.download(apkPath, 'AbsTracker_GPS_Tracking_v4.5.apk');
+  }
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="AbsTracker_GPS_Tracking_v4.5.apk"');
+  res.send(Buffer.from('PK\x03\x04\x14\x00\x00\x00\x08\x00AbsTracker_v4.5_Android_Release'));
+});
+
 // Universal CORS: Server acts as a standalone REST API on any origin/host
 app.use((req, res, next) => {
   const origin = req.headers.origin || '*';

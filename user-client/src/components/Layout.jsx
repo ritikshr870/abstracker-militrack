@@ -1,11 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Car, Map, History, FileText, Bell, User, Volume2, VolumeX, RefreshCw } from 'lucide-react';
+import { Car, Map, History, FileText, Bell, User, Volume2, VolumeX, RefreshCw, Download, BellRing, Smartphone } from 'lucide-react';
 import { useTracking } from '../contexts/TrackingContext';
+import InstallAppBanner from './InstallAppBanner';
+import InstallAppModal from './InstallAppModal';
+import NotificationSettingsModal from './NotificationSettingsModal';
+import { getNotificationPermission } from '../utils/notificationManager';
 
 export default function Layout() {
   const { stats, alerts, soundEnabled, setSoundEnabled, refreshData, loading } = useTracking();
   const location = useLocation();
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notifPerm, setNotifPerm] = useState(getNotificationPermission());
+
+  useEffect(() => {
+    setNotifPerm(getNotificationPermission());
+  }, []);
 
   const navItems = [
     { to: '/', label: 'Vehicles', icon: Car, count: stats.total },
@@ -19,9 +30,12 @@ export default function Layout() {
   return (
     <div className="w-full h-full min-h-[100dvh] flex flex-col bg-slate-100 text-slate-900 overflow-hidden relative font-sans">
       
+      {/* Top PWA & APK Installation Notice Banner */}
+      <InstallAppBanner />
+
       {/* Brand Top Header */}
-      <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3.5 sm:px-6 flex items-center justify-between shrink-0 z-30 pt-safe shadow-xs">
-        <div className="flex items-center gap-3">
+      <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 pt-safe shadow-xs">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-xs shrink-0">
             <img 
               src="https://ik.imagekit.io/xgxpgvop9/abstracker.jpg" 
@@ -70,14 +84,49 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* Controls: Live Status, Refresh, and Sound Toggle */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Controls: Install App, Notification Bell, Live Status, Refresh, and Sound Toggle */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Active Fleet Counter Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 shadow-2xs">
+          <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 shadow-2xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="hidden sm:inline">Fleet</span>
             <span className="font-mono">{stats.running}/{stats.total}</span>
           </div>
+
+          {/* Install App / APK Button (Desktop) */}
+          <button
+            onClick={() => setShowInstallModal(true)}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition cursor-pointer shadow-2xs"
+            title="Download Android APK & Install App"
+          >
+            <Download size={13} className="text-blue-600" />
+            <span>Install App</span>
+          </button>
+
+          {/* Install App Button (Mobile) */}
+          <button
+            onClick={() => setShowInstallModal(true)}
+            className="sm:hidden w-8 h-8 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 cursor-pointer shadow-2xs"
+            title="Download APK / Install App"
+          >
+            <Download size={14} />
+          </button>
+
+          {/* Push Notification Alerts Bell Button */}
+          <button
+            onClick={() => setShowNotificationModal(true)}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-2xl border flex items-center justify-center transition cursor-pointer relative shadow-2xs ${
+              notifPerm === 'granted'
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-700'
+            }`}
+            title={notifPerm === 'granted' ? 'Notification Alert Settings (Active)' : 'Enable Push Notifications'}
+          >
+            <BellRing size={15} />
+            {notifPerm !== 'granted' && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white animate-pulse" />
+            )}
+          </button>
 
           {/* Refresh Action */}
           <button
@@ -137,6 +186,21 @@ export default function Layout() {
           );
         })}
       </nav>
+
+      {/* Install App & Android APK Modal */}
+      {showInstallModal && (
+        <InstallAppModal onClose={() => setShowInstallModal(false)} />
+      )}
+
+      {/* Push Notification Permissions & Settings Modal */}
+      {showNotificationModal && (
+        <NotificationSettingsModal 
+          onClose={() => {
+            setShowNotificationModal(false);
+            setNotifPerm(getNotificationPermission());
+          }} 
+        />
+      )}
     </div>
   );
 }
