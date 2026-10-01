@@ -8,43 +8,44 @@ import {
 import { createDirectionalVehicleIcon, calculateBearing } from './VehicleIcons';
 
 const TILE_PROVIDERS = {
-  maptilerStreets: {
-    name: 'MapTiler Streets HD',
-    url: 'https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=UFzZhhOMgEjhPErFufnk',
-    maxZoom: 20,
-    attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+  googleStreets: {
+    name: 'Google Streets HD (Full Roads & Places)',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    attribution: '&copy; Google Maps'
   },
-  maptilerSatellite: {
-    name: 'MapTiler Satellite HD',
-    url: 'https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg?key=UFzZhhOMgEjhPErFufnk',
+  googleHybrid: {
+    name: 'Google Satellite & Roads HD',
+    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    attribution: '&copy; Google Maps'
+  },
+  cartoVoyager: {
+    name: 'CartoDB Detailed Places & Roads',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: ['a', 'b', 'c', 'd'],
     maxZoom: 20,
-    attribution: '&copy; MapTiler'
+    attribution: '&copy; CartoDB &copy; OpenStreetMap'
   },
   traveltime: {
-    name: 'TravelTime HD',
+    name: 'TravelTime Detailed Bright',
     url: 'https://tiles.traveltimeapp.com/osm-bright/{z}/{x}/{y}.png?key=4b4350ea',
     maxZoom: 19,
     attribution: '&copy; TravelTime &copy; OpenStreetMap'
   },
   esriStreets: {
-    name: 'Google Streets HD',
+    name: 'Esri World Navigation',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     maxZoom: 20,
     attribution: '&copy; Esri &mdash; Street Map HD'
   },
   osm: {
-    name: 'OpenStreetMap',
+    name: 'OpenStreetMap Atlas',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors'
-  },
-  hybrid: {
-    name: 'Satellite HD',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    labelsUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-    roadsUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
-    maxZoom: 19,
-    attribution: 'Tiles &copy; Esri &mdash; High-Res Satellite'
   }
 };
 
@@ -146,7 +147,7 @@ function interpolatePoints(start, end, count = 120) {
 }
 
 export default function TripLivePreviewModal({ data, onClose }) {
-  const [activeLayer, setActiveLayer] = useState('maptilerStreets');
+  const [activeLayer, setActiveLayer] = useState('googleStreets');
   const [copied, setCopied] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);

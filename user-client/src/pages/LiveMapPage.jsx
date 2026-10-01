@@ -7,24 +7,32 @@ import ShareLiveTrackingModal from '../components/ShareLiveTrackingModal';
 import { Layers, Crosshair, Navigation, Navigation2, Share2, Key, Battery, Gauge, ChevronUp, ChevronDown, Power, Compass, MapPin, Copy, Check } from 'lucide-react';
 
 const MAP_TILES = {
-  maptilerStreets: {
-    name: 'MapTiler Streets HD',
-    url: 'https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=UFzZhhOMgEjhPErFufnk',
-    attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
-    subdomains: [],
-    maxZoom: 20,
-    maxNativeZoom: 19
+  googleStreets: {
+    name: 'Google Streets HD (Detailed Roads & Places)',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    attribution: '&copy; Google Maps',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    maxNativeZoom: 20
   },
-  maptilerSatellite: {
-    name: 'MapTiler Satellite HD',
-    url: 'https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg?key=UFzZhhOMgEjhPErFufnk',
-    attribution: '&copy; MapTiler',
-    subdomains: [],
+  googleHybrid: {
+    name: 'Google Satellite & Roads HD',
+    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    attribution: '&copy; Google Maps',
+    subdomains: ['0', '1', '2', '3'],
+    maxZoom: 21,
+    maxNativeZoom: 20
+  },
+  cartoVoyager: {
+    name: 'CartoDB Detailed Places & Roads',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; CartoDB &copy; OpenStreetMap',
+    subdomains: ['a', 'b', 'c', 'd'],
     maxZoom: 20,
     maxNativeZoom: 19
   },
   traveltime: {
-    name: 'TravelTime HD',
+    name: 'TravelTime Detailed Bright',
     url: 'https://tiles.traveltimeapp.com/osm-bright/{z}/{x}/{y}.png?key=4b4350ea',
     attribution: '&copy; TravelTime &copy; OpenStreetMap',
     subdomains: [],
@@ -32,27 +40,19 @@ const MAP_TILES = {
     maxNativeZoom: 19
   },
   esriStreets: {
-    name: 'Google Streets HD',
+    name: 'Esri World Navigation',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; Esri, HERE, Garmin',
+    attribution: '&copy; Esri &mdash; Street Map HD',
     subdomains: [],
     maxZoom: 20,
     maxNativeZoom: 19
   },
   osm: {
     name: 'OpenStreetMap Atlas',
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
-    subdomains: [],
+    subdomains: ['a', 'b', 'c'],
     maxZoom: 19,
-    maxNativeZoom: 19
-  },
-  maptilerOutdoor: {
-    name: 'MapTiler Outdoor',
-    url: 'https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=UFzZhhOMgEjhPErFufnk',
-    attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
-    subdomains: [],
-    maxZoom: 20,
     maxNativeZoom: 19
   }
 };
@@ -71,7 +71,7 @@ export default function LiveMapPage() {
   const tileLayerRef = useRef(null);
   const markersRef = useRef({});
 
-  const [activeTile, setActiveTile] = useState('maptilerStreets');
+  const [activeTile, setActiveTile] = useState('googleStreets');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
   const [isSheetExpanded, setIsSheetExpanded] = useState(true); // Expanded by default to show detailed location

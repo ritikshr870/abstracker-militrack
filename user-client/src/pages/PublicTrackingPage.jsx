@@ -138,11 +138,12 @@ export default function PublicTrackingPage() {
       });
       mapRef.current = map;
 
-      // MapTiler Streets HD - Crisp streets with active key
-      tileLayerRef.current = L.tileLayer('https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=UFzZhhOMgEjhPErFufnk', {
-        maxZoom: 20,
-        maxNativeZoom: 19,
-        attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+      // Google Streets HD - Full Detailed Roads, Villages, Landmarks & Small Places
+      tileLayerRef.current = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 21,
+        maxNativeZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps'
       }).addTo(map);
 
       // Guaranteed tile rendering: invalidateSize at 100ms, 300ms, and 800ms
