@@ -1,10 +1,13 @@
 /**
  * AbsTracker Universal Push Notification & Sound Manager
- * Handles browser notification permissions, native service worker push notifications,
- * and audio chime dispatch for live telematics events (ignition, overspeed, alarms).
+ * Handles native Android Capacitor local notifications, browser Web Push API,
+ * and audio chime / text-to-speech dispatch for live telematics events (ignition, overspeed, alarms).
  */
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 const NOTIFICATION_PREFS_KEY = 'abstracker_notification_prefs';
+const NATIVE_PERM_KEY = 'abstracker_native_notif_perm';
 
 export function getStoredNotificationPrefs() {
   try {
@@ -29,17 +32,83 @@ export function saveNotificationPrefs(prefs) {
 }
 
 export function isNotificationSupported() {
-  return typeof window !== 'undefined' && 'Notification' in window;
+  if (typeof window === 'undefined') return false;
+  if (Capacitor.isNativePlatform()) return true;
+  return 'Notification' in window;
+}
+
+// Ensure notification channel is created for Android 8.0+
+let isChannelCreated = false;
+export async function ensureAndroidChannel() {
+  if (!Capacitor.isNativePlatform() || isChannelCreated) return;
+  try {
+    await LocalNotifications.createChannel({
+      id: 'telematics-alerts',
+      name: 'AbsTracker Vehicle Alerts',
+      description: 'Critical ignition, overspeed, and security telematics alerts',
+      importance: 5, // MAX importance for heads-up alert banner
+      visibility: 1, // Public visibility on lock screen
+      sound: 'alert.wav',
+      vibration: true,
+      lights: true,
+      lightColor: '#2563EB'
+    });
+    isChannelCreated = true;
+  } catch (e) {
+    console.warn('Channel creation warning:', e);
+  }
+}
+
+export async function checkNotificationPermissionAsync() {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const check = await LocalNotifications.checkPermissions();
+      if (check.display === 'granted') {
+        localStorage.setItem(NATIVE_PERM_KEY, 'granted');
+        return 'granted';
+      } else if (check.display === 'denied') {
+        localStorage.setItem(NATIVE_PERM_KEY, 'denied');
+        return 'denied';
+      } else {
+        return 'default';
+      }
+    } catch (e) {
+      return localStorage.getItem(NATIVE_PERM_KEY) || 'granted';
+    }
+  }
+
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+  return Notification.permission;
 }
 
 export function getNotificationPermission() {
+  if (Capacitor.isNativePlatform()) {
+    return localStorage.getItem(NATIVE_PERM_KEY) || 'granted';
+  }
   if (!isNotificationSupported()) return 'unsupported';
   return Notification.permission;
 }
 
 export async function requestNotificationPermission() {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await ensureAndroidChannel();
+      const res = await LocalNotifications.requestPermissions();
+      const status = res.display === 'granted' ? 'granted' : (res.display === 'denied' ? 'denied' : 'default');
+      localStorage.setItem(NATIVE_PERM_KEY, status);
+      if (status === 'granted') {
+        playNotificationSound();
+      }
+      return status;
+    } catch (err) {
+      console.error('Native notification permission error:', err);
+      localStorage.setItem(NATIVE_PERM_KEY, 'granted');
+      return 'granted';
+    }
+  }
+
   if (!isNotificationSupported()) {
-    throw new Error('Push notifications are not supported in this browser.');
+    throw new Error('Push notifications are not supported in this environment.');
   }
 
   try {
@@ -54,7 +123,7 @@ export async function requestNotificationPermission() {
   }
 }
 
-// Generates an instant high-fidelity audio tone for critical vehicle alerts
+// Audio synthesizer tone for alert
 export function playNotificationSound() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -65,8 +134,8 @@ export function playNotificationSound() {
     const gain = ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
-    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12); // E6
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
 
     gain.gain.setValueAtTime(0.2, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
@@ -79,17 +148,13 @@ export function playNotificationSound() {
   } catch (e) {}
 }
 
-/**
- * Text-to-Speech Engine for vehicle voice alerts:
- * Speaks "Engine On", "Engine Off", "Overspeed", etc.
- */
+// Spoken Voice alert ("Engine On", "Engine Off", "Overspeed Alert")
 export function speakVehicleAlert(text) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
     const prefs = getStoredNotificationPrefs();
     if (prefs.voiceAlerts === false) return;
 
-    // Cancel current queue to give immediate priority to new alert
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -113,67 +178,90 @@ export function speakVehicleAlert(text) {
   }
 }
 
-/**
- * Dispatches a native phone/browser push notification
- */
+// Dispatch native phone / browser push notification
+let notifIdCounter = 1000;
 export async function sendPushNotification(title, options = {}) {
   const prefs = getStoredNotificationPrefs();
   if (prefs.pushEnabled === false) return false;
 
-  if (!isNotificationSupported() || Notification.permission !== 'granted') {
-    return false;
-  }
-
   const notificationTitle = title || 'AbsTracker Fleet Alert';
-  const notificationOptions = {
-    body: options.body || 'Vehicle telematics update received.',
-    icon: options.icon || 'https://ik.imagekit.io/xgxpgvop9/abstracker.jpg',
-    badge: 'https://ik.imagekit.io/xgxpgvop9/abstracker.jpg',
-    vibrate: [250, 100, 250, 100, 250],
-    data: options.url || '/app/',
-    tag: options.tag || `alert-${Date.now()}`,
-    renotify: true,
-    ...options
-  };
+  const notificationBody = options.body || 'Vehicle telematics update received.';
 
   if (prefs.soundEnabled !== false) {
     playNotificationSound();
   }
 
-  // 1. Primary: Use Service Worker registration if active (works on background / mobile)
+  // 1. If running on native Android APK via Capacitor
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await ensureAndroidChannel();
+      notifIdCounter = (notifIdCounter + 1) % 999999;
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title: notificationTitle,
+            body: notificationBody,
+            id: notifIdCounter,
+            channelId: 'telematics-alerts',
+            smallIcon: 'ic_launcher',
+            largeIcon: 'ic_launcher',
+            extra: {
+              url: options.url || '/app/'
+            }
+          }
+        ]
+      });
+      return true;
+    } catch (e) {
+      console.warn('Capacitor local notification dispatch warning:', e);
+    }
+  }
+
+  // 2. Web ServiceWorker push notification
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.ready;
       if (reg && reg.showNotification) {
-        await reg.showNotification(notificationTitle, notificationOptions);
+        await reg.showNotification(notificationTitle, {
+          body: notificationBody,
+          icon: options.icon || 'https://ik.imagekit.io/xgxpgvop9/abstracker.jpg',
+          badge: 'https://ik.imagekit.io/xgxpgvop9/abstracker.jpg',
+          vibrate: [250, 100, 250, 100, 250],
+          data: options.url || '/app/',
+          tag: options.tag || `alert-${Date.now()}`,
+          renotify: true,
+          ...options
+        });
         return true;
       }
     } catch (e) {}
   }
 
-  // 2. Fallback: Standard browser Notification constructor
-  try {
-    const notif = new Notification(notificationTitle, notificationOptions);
-    notif.onclick = () => {
-      window.focus();
-      if (options.url) window.location.href = options.url;
-      notif.close();
-    };
-    return true;
-  } catch (err) {
-    return false;
+  // 3. Fallback standard Web Notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const notif = new Notification(notificationTitle, {
+        body: notificationBody,
+        icon: options.icon || 'https://ik.imagekit.io/xgxpgvop9/abstracker.jpg'
+      });
+      notif.onclick = () => {
+        window.focus();
+        if (options.url) window.location.href = options.url;
+        notif.close();
+      };
+      return true;
+    } catch (err) {}
   }
+
+  return false;
 }
 
-/**
- * Fires an immediate test notification with sound and vibration
- */
 export async function sendTestNotification() {
   const perm = getNotificationPermission();
   if (perm !== 'granted') {
     const requested = await requestNotificationPermission();
     if (requested !== 'granted') {
-      throw new Error('Please enable browser notification permission first.');
+      throw new Error('Please enable notification permissions first.');
     }
   }
 

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { 
   getNotificationPermission, 
+  checkNotificationPermissionAsync,
   requestNotificationPermission, 
   sendTestNotification,
   getStoredNotificationPrefs,
@@ -22,7 +23,9 @@ export default function NotificationSettingsModal({ onClose }) {
   const supported = isNotificationSupported();
 
   useEffect(() => {
-    setPermission(getNotificationPermission());
+    checkNotificationPermissionAsync().then(p => {
+      if (p) setPermission(p);
+    });
   }, []);
 
   const handleToggle = (key) => {
@@ -40,7 +43,7 @@ export default function NotificationSettingsModal({ onClose }) {
       if (res === 'granted') {
         setFeedback({ type: 'success', text: 'Push notifications successfully enabled!' });
       } else if (res === 'denied') {
-        setFeedback({ type: 'error', text: 'Notifications were blocked. Please enable them in your browser site permissions.' });
+        setFeedback({ type: 'error', text: 'Notifications were blocked. Please enable them in app/device settings.' });
       }
     } catch (err) {
       setFeedback({ type: 'error', text: err.message || 'Permission request failed' });

@@ -12,6 +12,8 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/status-bar": "^8.0.4",
     "axios": "^1.20.0",
     "date-fns": "^4.4.0",
     "jspdf": "^4.2.1",

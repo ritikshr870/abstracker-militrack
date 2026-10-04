@@ -28,7 +28,7 @@ export default function Layout() {
     <div className="w-full h-full min-h-[100dvh] flex flex-col bg-slate-100 text-slate-900 overflow-hidden relative font-sans">
       
       {/* Brand Top Header */}
-      <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 pt-safe shadow-xs">
+      <header className="min-h-14 sm:min-h-16 bg-white/98 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0 z-30 pt-safe shadow-xs">
         <div className="flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-xs shrink-0">
             <img 
