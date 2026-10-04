@@ -1,0 +1,12 @@
+{
+  "appId": "com.abstracker.tracking",
+  "appName": "AbsTracker",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

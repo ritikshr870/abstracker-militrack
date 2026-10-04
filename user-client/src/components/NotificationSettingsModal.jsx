@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Bell, BellRing, BellOff, Volume2, Key, Gauge, ShieldAlert, 
-  Check, CheckCircle2, AlertTriangle, Sparkles, Send, RefreshCw 
+  Check, CheckCircle2, AlertTriangle, Sparkles, Send, RefreshCw, Mic 
 } from 'lucide-react';
 import { 
   getNotificationPermission, 
@@ -220,6 +220,23 @@ export default function NotificationSettingsModal({ onClose }) {
                   checked={prefs.overspeedAlerts}
                   onChange={() => handleToggle('overspeedAlerts')}
                   className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                />
+              </label>
+
+              {/* Voice Speech Alert ("Engine On / Off") */}
+              <label className="p-3 sm:p-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-100/50 transition">
+                <div className="flex items-center gap-2.5">
+                  <Mic size={16} className="text-purple-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-slate-800 text-xs">Spoken Voice Alerts ("Engine On / Off")</p>
+                    <p className="text-[10px] text-slate-500">Real-time voice announcement for vehicle ignition &amp; alarms</p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={prefs.voiceAlerts !== false}
+                  onChange={() => handleToggle('voiceAlerts')}
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300 cursor-pointer"
                 />
               </label>
 

@@ -274,6 +274,34 @@ export default function ReportsPage() {
     return reportData.filter(item => item.deviceId === Number(inReportVehicleFilter));
   }, [reportData, inReportVehicleFilter]);
 
+  // Per-vehicle individual count, metric aggregates, and records grouping
+  const vehicleStatsSummary = useMemo(() => {
+    return selectedVehicleIds.map(vId => {
+      const veh = liveVehicles.find(v => v.id === vId) || { id: vId, name: `Vehicle ${vId}`, uniqueId: '', category: 'car' };
+      const vehRecords = reportData.filter(r => r.deviceId === vId);
+
+      const count = vehRecords.length;
+      const totalDist = vehRecords.reduce((acc, r) => acc + (r.distance || 0), 0);
+      const totalDistKm = (totalDist / 1000).toFixed(1);
+
+      const runningMs = vehRecords.reduce((acc, r) => acc + (r.runningHours || r.duration || 0), 0);
+      const stoppedMs = vehRecords.reduce((acc, r) => acc + (r.stoppedHours || 0), 0);
+      const idleMs = vehRecords.reduce((acc, r) => acc + (r.idleHours || 0), 0);
+      const maxSpd = Math.round(vehRecords.reduce((max, r) => Math.max(max, r.maxSpeed ? r.maxSpeed * 1.852 : 0), 0));
+
+      return {
+        vehicle: veh,
+        records: vehRecords,
+        count,
+        totalDistKm,
+        runningHoursStr: formatHoursMinutes(runningMs),
+        stoppedHoursStr: formatHoursMinutes(stoppedMs),
+        idleHoursStr: formatHoursMinutes(idleMs),
+        maxSpeedKmh: maxSpd
+      };
+    });
+  }, [selectedVehicleIds, liveVehicles, reportData]);
+
   // Derived KPI calculations across displayed report records
   const totalTripKm = displayedReportData.reduce((acc, item) => acc + (item.distance ? item.distance / 1000 : 0), 0).toFixed(2);
   const totalDurationMs = displayedReportData.reduce((acc, item) => acc + (item.duration || item.runningHours || 0), 0);
@@ -438,6 +466,317 @@ export default function ReportsPage() {
     : null;
 
   const { from: activeFrom, to: activeTo } = calculateDateBounds();
+
+  const renderReportTable = (records, headerBlock = null) => (
+    <div className="bg-white border border-slate-300 rounded-3xl overflow-hidden shadow-xs space-y-0">
+      {headerBlock}
+      <div className="overflow-x-auto custom-scroll">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="bg-[#4F46E5] text-white font-bold text-[11px] tracking-wide">
+            {reportType === 'summary' ? (
+              <tr>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60 w-10">#</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Vehicle Number</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Start Date &amp; Time</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">End Date &amp; Time</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Distance</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Engine Hours</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Running Hours</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Stopped Hours</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Idle Hours</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">AC Hours</th>
+              </tr>
+            ) : reportType === 'trips' ? (
+              <tr>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60 w-10">#</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Vehicle Number</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Start Date &amp; Time</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">End Date &amp; Time</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Distance</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Duration</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Avg / Max Speed</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Start Location</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">End Location</th>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60">Replay</th>
+              </tr>
+            ) : (
+              <tr>
+                <th className="py-2.5 px-3 text-center border border-indigo-700/60 w-10">#</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Vehicle Number</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Arrival Time</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Departure Time</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Halt Duration</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Stop Address / Landmark</th>
+                <th className="py-2.5 px-3.5 border border-indigo-700/60">Coordinates</th>
+              </tr>
+            )}
+          </thead>
+          <tbody className="divide-y divide-slate-200 text-slate-800">
+            {reportType === 'summary' ? (
+              records.map((item, idx) => (
+                <tr key={idx} className="hover:bg-indigo-50/20 transition">
+                  <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono border border-slate-200 bg-slate-50/50">{idx + 1}</td>
+                  <td className="py-2 px-3.5 font-bold text-slate-900 whitespace-nowrap border border-slate-200">
+                    {item.vehicleName}
+                  </td>
+                  <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">
+                    {item.startDate}
+                  </td>
+                  <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">
+                    {item.endDate}
+                  </td>
+                  <td className="py-2 px-3.5 font-bold text-slate-900 font-mono whitespace-nowrap border border-slate-200">
+                    {item.distanceStr}
+                  </td>
+                  <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
+                    {item.engineHoursStr}
+                  </td>
+                  <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
+                    {item.runningHoursStr}
+                  </td>
+                  <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
+                    {item.stoppedHoursStr}
+                  </td>
+                  <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
+                    {item.idleHoursStr}
+                  </td>
+                  <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
+                    {item.acHoursStr}
+                  </td>
+                </tr>
+              ))
+            ) : reportType === 'trips' ? (
+              records.map((trip, idx) => {
+                const distKm = trip['Distance (km)'] || (trip.distance ? formatReportDistance(trip.distance) : '0 km');
+                const duration = trip['Duration'] || (trip.duration ? formatHoursMinutes(trip.duration) : '00:00');
+                const avgSpeed = trip['Avg Speed (km/h)'] || Math.round(trip.averageSpeed ? trip.averageSpeed * 1.852 : 0) + ' km/h';
+                const maxSpeed = trip['Max Speed (km/h)'] || Math.round(trip.maxSpeed ? trip.maxSpeed * 1.852 : 0) + ' km/h';
+                const startTime = trip['Start Time'] || (trip.startTime ? formatReportDateTime(trip.startTime) : '');
+                const endTime = trip['End Time'] || (trip.endTime ? formatReportDateTime(trip.endTime) : '');
+                const vehName = trip.vehicleName || 'Vehicle';
+
+                return (
+                  <tr key={idx} className="hover:bg-indigo-50/20 transition">
+                    <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono border border-slate-200 bg-slate-50/50">{idx + 1}</td>
+                    <td className="py-2 px-3.5 font-bold text-slate-900 whitespace-nowrap border border-slate-200">{vehName}</td>
+                    <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{startTime}</td>
+                    <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{endTime}</td>
+                    <td className="py-2 px-3.5 font-black text-indigo-600 font-mono tabular-nums whitespace-nowrap border border-slate-200">{distKm}</td>
+                    <td className="py-2 px-3 text-center font-bold text-slate-800 whitespace-nowrap border border-slate-200">{duration}</td>
+                    <td className="py-2 px-3 text-center font-mono tabular-nums whitespace-nowrap border border-slate-200">{avgSpeed} / {maxSpeed}</td>
+                    <td className="py-2 px-3.5 max-w-[200px] truncate border border-slate-200" title={trip.startAddress}>{trip.startAddress || 'Start location'}</td>
+                    <td className="py-2 px-3.5 max-w-[200px] truncate border border-slate-200" title={trip.endAddress}>{trip.endAddress || 'End location'}</td>
+                    <td className="py-2 px-3 text-center border border-slate-200">
+                      <button
+                        onClick={() => handleReplayTrip(trip)}
+                        className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 cursor-pointer"
+                        title="Replay Trip on Map"
+                      >
+                        <Play size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              records.map((stop, idx) => {
+                const stopTime = stop.startTime ? formatReportDateTime(stop.startTime) : '';
+                const endTime = stop.endTime ? formatReportDateTime(stop.endTime) : '';
+                const durationDisplay = stop.duration ? formatHoursMinutes(stop.duration) : '00:00';
+                const vehName = stop.vehicleName || 'Vehicle';
+
+                return (
+                  <tr key={idx} className="hover:bg-indigo-50/20 transition">
+                    <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono border border-slate-200 bg-slate-50/50">{idx + 1}</td>
+                    <td className="py-2 px-3.5 font-bold text-slate-900 whitespace-nowrap border border-slate-200">{vehName}</td>
+                    <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{stopTime}</td>
+                    <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{endTime}</td>
+                    <td className="py-2 px-3.5 font-black text-red-600 font-mono tabular-nums whitespace-nowrap border border-slate-200">{durationDisplay}</td>
+                    <td className="py-2 px-3.5 max-w-[300px] truncate border border-slate-200" title={stop.address}>{stop.address || 'Halt location'}</td>
+                    <td className="py-2 px-3.5 font-mono text-[11px] text-slate-500 whitespace-nowrap border border-slate-200">
+                      {stop.latitude ? `${Number(stop.latitude).toFixed(4)}, ${Number(stop.longitude).toFixed(4)}` : '-'}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderReportCards = (records) => (
+    <div className="space-y-3">
+      {reportType === 'summary' ? (
+        records.map((sum, idx) => (
+          <div key={idx} className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-xs hover:shadow-md transition">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-700 font-black text-[11px] flex items-center justify-center font-mono">
+                  #{idx + 1}
+                </span>
+                <span className="font-black text-slate-900 text-sm">{sum.vehicleName}</span>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 font-black text-xs font-mono tabular-nums">
+                {sum.distanceStr}
+              </span>
+            </div>
+
+            <div className="text-[11px] text-slate-500 font-mono flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <span>Start: <strong>{sum.startDate}</strong></span>
+              <span>End: <strong>{sum.endDate}</strong></span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase">Engine Hours</span>
+                <span className="text-base font-black text-slate-800 font-mono tabular-nums mt-0.5 block">{sum.engineHoursStr}</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase">Running Hours</span>
+                <span className="text-base font-black text-emerald-600 font-mono tabular-nums mt-0.5 block">{sum.runningHoursStr}</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase">Stopped Hours</span>
+                <span className="text-base font-black text-red-600 font-mono tabular-nums mt-0.5 block">{sum.stoppedHoursStr}</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase">Idle Hours</span>
+                <span className="text-base font-black text-amber-600 font-mono tabular-nums mt-0.5 block">{sum.idleHoursStr}</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase">AC Hours</span>
+                <span className="text-base font-black text-slate-600 font-mono tabular-nums mt-0.5 block">{sum.acHoursStr}</span>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : reportType === 'trips' ? (
+        records.map((trip, idx) => {
+          const distKm = trip['Distance (km)'] || (trip.distance ? formatReportDistance(trip.distance) : '0 km');
+          const duration = trip['Duration'] || (trip.duration ? formatHoursMinutes(trip.duration) : '00:00');
+          const avgSpeed = trip['Avg Speed (km/h)'] || Math.round(trip.averageSpeed ? trip.averageSpeed * 1.852 : 0) + ' km/h';
+          const maxSpeed = trip['Max Speed (km/h)'] || Math.round(trip.maxSpeed ? trip.maxSpeed * 1.852 : 0) + ' km/h';
+          const startTime = trip['Start Time'] || (trip.startTime ? formatReportDateTime(trip.startTime) : '');
+          const endTime = trip['End Time'] || (trip.endTime ? formatReportDateTime(trip.endTime) : '');
+          const vehName = trip.vehicleName || 'Vehicle';
+
+          return (
+            <div key={idx} className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-xs hover:shadow-md transition">
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 font-black text-[11px] flex items-center justify-center font-mono shrink-0">
+                    #{idx + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-slate-900 truncate block">
+                      {vehName} • Trip {idx + 1}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-black text-xs font-mono tabular-nums">
+                    {distKm}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs font-mono">
+                    {duration}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0"></div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wide">
+                      Start • {startTime}
+                    </span>
+                    <p className="text-slate-800 line-clamp-1 leading-tight font-medium">
+                      {trip.startAddress || 'Start location'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 mt-1 shrink-0"></div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wide">
+                      End • {endTime}
+                    </span>
+                    <p className="text-slate-800 line-clamp-1 leading-tight font-medium">
+                      {trip.endAddress || 'End location'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-center text-xs">
+                <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-semibold block uppercase">Avg Speed</span>
+                  <span className="font-black text-slate-800 font-mono tabular-nums">{avgSpeed}</span>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-semibold block uppercase">Top Speed</span>
+                  <span className="font-black text-red-600 font-mono tabular-nums">{maxSpeed}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between text-xs border-t border-slate-100">
+                <button
+                  onClick={() => handleReplayTrip(trip)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Play size={13} />
+                  <span>Replay Route</span>
+                </button>
+
+                <button
+                  onClick={() => handleCopyText(`trip-${idx}`, `${trip.startAddress || ''} to ${trip.endAddress || ''}`)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                  title="Copy trip addresses"
+                >
+                  {copiedId === `trip-${idx}` ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                </button>
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        records.map((stop, idx) => {
+          const stopTime = stop.startTime ? formatReportDateTime(stop.startTime) : '';
+          const endTime = stop.endTime ? formatReportDateTime(stop.endTime) : '';
+          const durationDisplay = stop.duration ? formatHoursMinutes(stop.duration) : '00:00';
+          const vehName = stop.vehicleName || 'Vehicle';
+
+          return (
+            <div key={idx} className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-red-50 text-red-600 font-black text-[11px] flex items-center justify-center font-mono">
+                    🛑
+                  </span>
+                  <span className="font-extrabold text-slate-900">{vehName} • Stop #{idx + 1}</span>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 font-black text-xs font-mono tabular-nums">
+                  {durationDisplay}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                📍 {stop.address || 'Parking Location'}
+              </p>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-mono">
+                <span>Arrived: {stopTime}</span>
+                <span>Departed: {endTime}</span>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-100 overflow-hidden select-none font-sans">
@@ -743,7 +1082,86 @@ export default function ReportsPage() {
       </div>
 
       {/* Main Report Body: Cards or Exact Grid Table */}
-      <div className="flex-1 overflow-y-auto custom-scroll p-3 sm:p-4 space-y-3 pb-24">
+      <div className="flex-1 overflow-y-auto custom-scroll p-3 sm:p-4 space-y-4 pb-24">
+        
+        {/* MULTI-VEHICLE COUNT & METRICS BREAKDOWN DECK */}
+        {selectedVehicleIds.length > 1 && vehicleStatsSummary.length > 0 && !loading && displayedReportData.length > 0 && (
+          <div className="bg-white border border-slate-300 rounded-3xl p-4 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                  Vehicle-Wise Telematics Count &amp; Summary
+                </h4>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500">
+                  {selectedVehicleIds.length} Vehicles in Report
+                </span>
+                {inReportVehicleFilter !== 'all' && (
+                  <button
+                    onClick={() => setInReportVehicleFilter('all')}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md cursor-pointer"
+                  >
+                    Reset to All
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {vehicleStatsSummary.map((vs, idx) => {
+                const isFiltered = inReportVehicleFilter === String(vs.vehicle.id);
+                return (
+                  <div
+                    key={vs.vehicle.id}
+                    onClick={() => setInReportVehicleFilter(isFiltered ? 'all' : String(vs.vehicle.id))}
+                    className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${
+                      isFiltered
+                        ? 'bg-indigo-50/80 border-indigo-600 shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100/70 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <VehicleCategoryIcon category={vs.vehicle.category} size={18} className="text-indigo-600 shrink-0" />
+                        <span className="font-black text-xs text-slate-900 truncate">{vs.vehicle.name}</span>
+                      </div>
+                      <span className="font-mono text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-md font-bold text-slate-600">
+                        {vs.vehicle.uniqueId || 'GPS'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5 pt-2 text-center">
+                      <div className="bg-white p-1.5 rounded-xl border border-slate-100">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">
+                          {reportType === 'trips' ? 'Trips' : reportType === 'stops' ? 'Stops' : 'Records'}
+                        </span>
+                        <span className="text-xs font-black text-indigo-700 font-mono tabular-nums">{vs.count}</span>
+                      </div>
+                      <div className="bg-white p-1.5 rounded-xl border border-slate-100">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Distance</span>
+                        <span className="text-xs font-black text-emerald-600 font-mono tabular-nums">{vs.totalDistKm} km</span>
+                      </div>
+                      <div className="bg-white p-1.5 rounded-xl border border-slate-100">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Running</span>
+                        <span className="text-xs font-black text-slate-800 font-mono tabular-nums">{vs.runningHoursStr}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 text-[10px] font-semibold text-slate-500">
+                      <span>Max Speed: <strong className="text-slate-800 font-mono">{vs.maxSpeedKmh} km/h</strong></span>
+                      <span className="text-indigo-600 font-bold">
+                        {isFiltered ? 'Active Filter ✓' : 'Click to view'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <VehicleLoadingAnimation
             vehicleNumber={singleSelectedVehicle?.name || `${selectedVehicleIds.length} Fleet Vehicles`}
@@ -762,311 +1180,88 @@ export default function ReportsPage() {
             </div>
           </div>
         ) : viewMode === 'table' ? (
-          /* EXACT PROFESSIONAL GRID DATA TABLE MATCHING TEMPLATE */
-          <div className="bg-white border border-slate-300 rounded-3xl overflow-hidden shadow-xs">
-            <div className="overflow-x-auto custom-scroll">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-[#4F46E5] text-white font-bold text-[11px] tracking-wide">
-                  {reportType === 'summary' ? (
-                    <tr>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60 w-10">#</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Vehicle Number</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Start Date &amp; Time</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">End Date &amp; Time</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Distance</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Engine Hours</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Running Hours</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Stopped Hours</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Idle Hours</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">AC Hours</th>
-                    </tr>
-                  ) : reportType === 'trips' ? (
-                    <tr>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60 w-10">#</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Vehicle Number</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Start Date &amp; Time</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">End Date &amp; Time</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Distance</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Duration</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Avg / Max Speed</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Start Location</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">End Location</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Replay</th>
-                    </tr>
-                  ) : (
-                    <tr>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60 w-10">#</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Vehicle Number</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Arrival Time</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Departure Time</th>
-                      <th className="py-2.5 px-3 text-center border border-indigo-700/60">Halt Duration</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Stop Address / Landmark</th>
-                      <th className="py-2.5 px-3.5 border border-indigo-700/60">Coordinates</th>
-                    </tr>
-                  )}
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-slate-800">
-                  {reportType === 'summary' ? (
-                    displayedReportData.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-indigo-50/20 transition">
-                        <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono border border-slate-200 bg-slate-50/50">{idx + 1}</td>
-                        <td className="py-2 px-3.5 font-bold text-slate-900 whitespace-nowrap border border-slate-200">
-                          {item.vehicleName}
-                        </td>
-                        <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">
-                          {item.startDate}
-                        </td>
-                        <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">
-                          {item.endDate}
-                        </td>
-                        <td className="py-2 px-3.5 font-bold text-slate-900 font-mono whitespace-nowrap border border-slate-200">
-                          {item.distanceStr}
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
-                          {item.engineHoursStr}
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
-                          {item.runningHoursStr}
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
-                          {item.stoppedHoursStr}
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
-                          {item.idleHoursStr}
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono font-medium border border-slate-200">
-                          {item.acHoursStr}
-                        </td>
-                      </tr>
-                    ))
-                  ) : reportType === 'trips' ? (
-                    displayedReportData.map((trip, idx) => {
-                      const distKm = trip['Distance (km)'] || (trip.distance ? formatReportDistance(trip.distance) : '0 km');
-                      const duration = trip['Duration'] || (trip.duration ? formatHoursMinutes(trip.duration) : '00:00');
-                      const avgSpeed = trip['Avg Speed (km/h)'] || Math.round(trip.averageSpeed ? trip.averageSpeed * 1.852 : 0) + ' km/h';
-                      const maxSpeed = trip['Max Speed (km/h)'] || Math.round(trip.maxSpeed ? trip.maxSpeed * 1.852 : 0) + ' km/h';
-                      const startTime = trip['Start Time'] || (trip.startTime ? formatReportDateTime(trip.startTime) : '');
-                      const endTime = trip['End Time'] || (trip.endTime ? formatReportDateTime(trip.endTime) : '');
-                      const vehName = trip.vehicleName || 'Vehicle';
-
-                      return (
-                        <tr key={idx} className="hover:bg-indigo-50/20 transition">
-                          <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono border border-slate-200 bg-slate-50/50">{idx + 1}</td>
-                          <td className="py-2 px-3.5 font-bold text-slate-900 whitespace-nowrap border border-slate-200">{vehName}</td>
-                          <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{startTime}</td>
-                          <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{endTime}</td>
-                          <td className="py-2 px-3.5 font-black text-indigo-600 font-mono tabular-nums whitespace-nowrap border border-slate-200">{distKm}</td>
-                          <td className="py-2 px-3 text-center font-bold text-slate-800 whitespace-nowrap border border-slate-200">{duration}</td>
-                          <td className="py-2 px-3 text-center font-mono tabular-nums whitespace-nowrap border border-slate-200">{avgSpeed} / {maxSpeed}</td>
-                          <td className="py-2 px-3.5 max-w-[200px] truncate border border-slate-200" title={trip.startAddress}>{trip.startAddress || 'Start location'}</td>
-                          <td className="py-2 px-3.5 max-w-[200px] truncate border border-slate-200" title={trip.endAddress}>{trip.endAddress || 'End location'}</td>
-                          <td className="py-2 px-3 text-center border border-slate-200">
-                            <button
-                              onClick={() => handleReplayTrip(trip)}
-                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 cursor-pointer"
-                              title="Replay Trip on Map"
-                            >
-                              <Play size={13} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    displayedReportData.map((stop, idx) => {
-                      const stopTime = stop.startTime ? formatReportDateTime(stop.startTime) : '';
-                      const endTime = stop.endTime ? formatReportDateTime(stop.endTime) : '';
-                      const durationDisplay = stop.duration ? formatHoursMinutes(stop.duration) : '00:00';
-                      const vehName = stop.vehicleName || 'Vehicle';
-
-                      return (
-                        <tr key={idx} className="hover:bg-indigo-50/20 transition">
-                          <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono border border-slate-200 bg-slate-50/50">{idx + 1}</td>
-                          <td className="py-2 px-3.5 font-bold text-slate-900 whitespace-nowrap border border-slate-200">{vehName}</td>
-                          <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{stopTime}</td>
-                          <td className="py-2 px-3.5 font-mono text-slate-700 whitespace-nowrap border border-slate-200">{endTime}</td>
-                          <td className="py-2 px-3 text-center font-bold text-red-600 font-mono tabular-nums whitespace-nowrap border border-slate-200">{durationDisplay}</td>
-                          <td className="py-2 px-3.5 max-w-[300px] truncate border border-slate-200" title={stop.address}>{stop.address || 'Halt location'}</td>
-                          <td className="py-2 px-3.5 font-mono text-[11px] text-slate-500 whitespace-nowrap border border-slate-200">
-                            {stop.latitude ? `${Number(stop.latitude).toFixed(4)}, ${Number(stop.longitude).toFixed(4)}` : '-'}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          selectedVehicleIds.length > 1 && inReportVehicleFilter === 'all' ? (
+            vehicleStatsSummary.filter(vs => vs.records.length > 0).map((vs, vIndex) =>
+              renderReportTable(vs.records, (
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 sm:px-5 flex flex-wrap items-center justify-between gap-3 border-b border-indigo-900/60">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-mono font-black text-xs">
+                      #{vIndex + 1}
+                    </span>
+                    <VehicleCategoryIcon category={vs.vehicle.category} size={20} className="text-white" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-white tracking-wide">{vs.vehicle.name}</span>
+                        {vs.vehicle.uniqueId && (
+                          <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded-md text-slate-300">
+                            {vs.vehicle.uniqueId}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-indigo-200">
+                        Individual Vehicle Telematics Log
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="bg-indigo-600/60 border border-indigo-400/40 text-white font-black px-2.5 py-1 rounded-xl font-mono">
+                      {vs.count} {reportType === 'trips' ? 'Trips' : reportType === 'stops' ? 'Stops' : 'Days'}
+                    </span>
+                    <span className="bg-emerald-600/50 border border-emerald-400/40 text-emerald-200 font-black px-2.5 py-1 rounded-xl font-mono">
+                      {vs.totalDistKm} km
+                    </span>
+                    <span className="bg-slate-700/50 border border-slate-500/40 text-slate-200 font-bold px-2.5 py-1 rounded-xl font-mono">
+                      {vs.runningHoursStr}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            renderReportTable(displayedReportData)
+          )
         ) : (
           /* RESPONSIVE CARDS VIEW */
-          reportType === 'summary' ? (
-            displayedReportData.map((sum, idx) => (
-              <div key={idx} className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-xs hover:shadow-md transition">
-                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-700 font-black text-[11px] flex items-center justify-center font-mono">
-                      #{idx + 1}
+          selectedVehicleIds.length > 1 && inReportVehicleFilter === 'all' ? (
+            vehicleStatsSummary.filter(vs => vs.records.length > 0).map((vs, vIndex) => (
+              <div key={vs.vehicle.id} className="space-y-3">
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 sm:px-5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs border border-indigo-900/60">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-mono font-black text-xs">
+                      #{vIndex + 1}
                     </span>
-                    <span className="font-black text-slate-900 text-sm">{sum.vehicleName}</span>
+                    <VehicleCategoryIcon category={vs.vehicle.category} size={20} className="text-white" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-white tracking-wide">{vs.vehicle.name}</span>
+                        {vs.vehicle.uniqueId && (
+                          <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded-md text-slate-300">
+                            {vs.vehicle.uniqueId}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-indigo-200">
+                        Individual Vehicle Telematics Log
+                      </span>
+                    </div>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 font-black text-xs font-mono tabular-nums">
-                    {sum.distanceStr}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-slate-500 font-mono flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  <span>Start: <strong>{sum.startDate}</strong></span>
-                  <span>End: <strong>{sum.endDate}</strong></span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Engine Hours</span>
-                    <span className="text-base font-black text-slate-800 font-mono tabular-nums mt-0.5 block">{sum.engineHoursStr}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Running Hours</span>
-                    <span className="text-base font-black text-emerald-600 font-mono tabular-nums mt-0.5 block">{sum.runningHoursStr}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Stopped Hours</span>
-                    <span className="text-base font-black text-red-600 font-mono tabular-nums mt-0.5 block">{sum.stoppedHoursStr}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Idle Hours</span>
-                    <span className="text-base font-black text-amber-600 font-mono tabular-nums mt-0.5 block">{sum.idleHoursStr}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">AC Hours</span>
-                    <span className="text-base font-black text-slate-600 font-mono tabular-nums mt-0.5 block">{sum.acHoursStr}</span>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="bg-indigo-600/60 border border-indigo-400/40 text-white font-black px-2.5 py-1 rounded-xl font-mono">
+                      {vs.count} {reportType === 'trips' ? 'Trips' : reportType === 'stops' ? 'Stops' : 'Days'}
+                    </span>
+                    <span className="bg-emerald-600/50 border border-emerald-400/40 text-emerald-200 font-black px-2.5 py-1 rounded-xl font-mono">
+                      {vs.totalDistKm} km
+                    </span>
+                    <span className="bg-slate-700/50 border border-slate-500/40 text-slate-200 font-bold px-2.5 py-1 rounded-xl font-mono">
+                      {vs.runningHoursStr}
+                    </span>
                   </div>
                 </div>
+                {renderReportCards(vs.records)}
               </div>
             ))
-          ) : reportType === 'trips' ? (
-            displayedReportData.map((trip, idx) => {
-              const distKm = trip['Distance (km)'] || (trip.distance ? formatReportDistance(trip.distance) : '0 km');
-              const duration = trip['Duration'] || (trip.duration ? formatHoursMinutes(trip.duration) : '00:00');
-              const avgSpeed = trip['Avg Speed (km/h)'] || Math.round(trip.averageSpeed ? trip.averageSpeed * 1.852 : 0) + ' km/h';
-              const maxSpeed = trip['Max Speed (km/h)'] || Math.round(trip.maxSpeed ? trip.maxSpeed * 1.852 : 0) + ' km/h';
-              const startTime = trip['Start Time'] || (trip.startTime ? formatReportDateTime(trip.startTime) : '');
-              const endTime = trip['End Time'] || (trip.endTime ? formatReportDateTime(trip.endTime) : '');
-              const vehName = trip.vehicleName || 'Vehicle';
-
-              return (
-                <div key={idx} className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-xs hover:shadow-md transition">
-                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 font-black text-[11px] flex items-center justify-center font-mono shrink-0">
-                        #{idx + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <span className="font-extrabold text-slate-900 truncate block">
-                          {vehName} • Trip {idx + 1}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-black text-xs font-mono tabular-nums">
-                        {distKm}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs font-mono">
-                        {duration}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0"></div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wide">
-                          Start • {startTime}
-                        </span>
-                        <p className="text-slate-800 line-clamp-1 leading-tight font-medium">
-                          {trip.startAddress || 'Start location'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500 mt-1 shrink-0"></div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wide">
-                          End • {endTime}
-                        </span>
-                        <p className="text-slate-800 line-clamp-1 leading-tight font-medium">
-                          {trip.endAddress || 'End location'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-center text-xs">
-                    <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Avg Speed</span>
-                      <span className="font-black text-slate-800 font-mono tabular-nums">{avgSpeed}</span>
-                    </div>
-                    <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Top Speed</span>
-                      <span className="font-black text-red-600 font-mono tabular-nums">{maxSpeed}</span>
-                    </div>
-                  </div>
-
-                  {/* Quick Card Action: Replay & Copy Address */}
-                  <div className="pt-2 flex items-center justify-between text-xs border-t border-slate-100">
-                    <button
-                      onClick={() => handleReplayTrip(trip)}
-                      className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Play size={13} />
-                      <span>Replay Route</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleCopyText(`trip-${idx}`, `${trip.startAddress || ''} to ${trip.endAddress || ''}`)}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-                      title="Copy trip addresses"
-                    >
-                      {copiedId === `trip-${idx}` ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                </div>
-              );
-            })
           ) : (
-            displayedReportData.map((stop, idx) => {
-              const stopTime = stop.startTime ? formatReportDateTime(stop.startTime) : '';
-              const endTime = stop.endTime ? formatReportDateTime(stop.endTime) : '';
-              const durationDisplay = stop.duration ? formatHoursMinutes(stop.duration) : '00:00';
-              const vehName = stop.vehicleName || 'Vehicle';
-
-              return (
-                <div key={idx} className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-red-50 text-red-600 font-black text-[11px] flex items-center justify-center font-mono">
-                        🛑
-                      </span>
-                      <span className="font-extrabold text-slate-900">{vehName} • Stop #{idx + 1}</span>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 font-black text-xs font-mono tabular-nums">
-                      {durationDisplay}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    📍 {stop.address || 'Parking Location'}
-                  </p>
-
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-mono">
-                    <span>Arrived: {stopTime}</span>
-                    <span>Departed: {endTime}</span>
-                  </div>
-                </div>
-              );
-            })
+            renderReportCards(displayedReportData)
           )
         )}
       </div>

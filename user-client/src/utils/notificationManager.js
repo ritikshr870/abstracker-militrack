@@ -14,6 +14,7 @@ export function getStoredNotificationPrefs() {
   return {
     pushEnabled: true,
     soundEnabled: true,
+    voiceAlerts: true,
     ignitionAlerts: true,
     overspeedAlerts: true,
     geofenceAlerts: true,
@@ -76,6 +77,40 @@ export function playNotificationSound() {
     osc.start();
     osc.stop(ctx.currentTime + 0.28);
   } catch (e) {}
+}
+
+/**
+ * Text-to-Speech Engine for vehicle voice alerts:
+ * Speaks "Engine On", "Engine Off", "Overspeed", etc.
+ */
+export function speakVehicleAlert(text) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  try {
+    const prefs = getStoredNotificationPrefs();
+    if (prefs.voiceAlerts === false) return;
+
+    // Cancel current queue to give immediate priority to new alert
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    utterance.lang = 'en-US';
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const preferred = voices.find(v => 
+        (v.lang.startsWith('en') || v.lang.startsWith('en-IN')) && 
+        (v.name.includes('Google') || v.name.includes('Natural') || v.default)
+      ) || voices[0];
+      if (preferred) utterance.voice = preferred;
+    }
+
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn('Speech synthesis warning:', e);
+  }
 }
 
 /**
@@ -142,8 +177,10 @@ export async function sendTestNotification() {
     }
   }
 
+  speakVehicleAlert('AbsTracker Voice Alert: Engine On, Engine Off Active');
+
   return sendPushNotification('AbsTracker Live Alert Test', {
-    body: 'Push notifications & vehicle sound alarms are fully active on this device!',
+    body: 'Push notifications, voice engine speech, and alarms are active on this device!',
     tag: 'test-notification',
     url: '/app/'
   });

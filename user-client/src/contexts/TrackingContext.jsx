@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { api, WS_BASE_URL } from '../api/client';
 import { useAuth } from './AuthContext';
-import { sendPushNotification } from '../utils/notificationManager';
+import { sendPushNotification, speakVehicleAlert } from '../utils/notificationManager';
 
 const TrackingContext = createContext(null);
 
@@ -42,6 +42,39 @@ export function TrackingProvider({ children }) {
   const retryCountRef = useRef(0);
   const lastVehiclesRef = useRef(null);
   const initialAlertsGeneratedRef = useRef(false);
+  const prevIgnitionsRef = useRef({});
+
+  // Helper to detect ignition state transitions and speak "Engine On" / "Engine Off"
+  const checkIgnitionChanges = (positionsList) => {
+    if (!Array.isArray(positionsList)) return;
+    positionsList.forEach(p => {
+      if (!p || !p.deviceId) return;
+      const devId = p.deviceId;
+      const dev = devicesMap[devId];
+      const vName = dev?.name || 'Vehicle';
+      const isIgnOn = p.attributes?.ignition === true || p.ignition === true;
+      const prev = prevIgnitionsRef.current[devId];
+
+      if (prev !== undefined && prev !== isIgnOn) {
+        if (isIgnOn) {
+          speakVehicleAlert(`${vName} Engine On`);
+          sendPushNotification(`${vName} Engine ON`, {
+            body: `${vName} ignition has been switched ON.`,
+            tag: `ign-on-${devId}-${Date.now()}`,
+            url: '/app/map'
+          });
+        } else {
+          speakVehicleAlert(`${vName} Engine Off`);
+          sendPushNotification(`${vName} Engine OFF`, {
+            body: `${vName} ignition has been switched OFF.`,
+            tag: `ign-off-${devId}-${Date.now()}`,
+            url: '/app/map'
+          });
+        }
+      }
+      prevIgnitionsRef.current[devId] = isIgnOn;
+    });
+  };
 
   // Sound chime
   const playAlertSound = () => {
@@ -81,6 +114,7 @@ export function TrackingProvider({ children }) {
         const pMap = {};
         posRes.data.forEach(p => { pMap[p.deviceId] = p; });
         setPositionsMap(pMap);
+        checkIgnitionChanges(posRes.data);
         localStorage.setItem('abstracker_cached_positions', JSON.stringify(pMap));
       }
 
@@ -165,6 +199,7 @@ export function TrackingProvider({ children }) {
                 data.positions.forEach(p => { updated[p.deviceId] = p; });
                 return updated;
               });
+              checkIgnitionChanges(data.positions);
             }
             if (data.events && Array.isArray(data.events)) {
               const incoming = data.events.map(ev => {
@@ -194,6 +229,21 @@ export function TrackingProvider({ children }) {
                     tag: alertItem.id,
                     url: '/app/alerts'
                   });
+
+                  // Spoken Voice Announcements ("Engine On", "Engine Off", "Overspeed")
+                  const tLower = (alertItem.type || '').toLowerCase();
+                  const titLower = (alertItem.title || '').toLowerCase();
+                  if (tLower.includes('ignition') || titLower.includes('ignition')) {
+                    if (tLower.includes('off') || titLower.includes('off')) {
+                      speakVehicleAlert(`${alertItem.vehicleName} Engine Off`);
+                    } else {
+                      speakVehicleAlert(`${alertItem.vehicleName} Engine On`);
+                    }
+                  } else if (tLower.includes('overspeed') || titLower.includes('overspeed')) {
+                    speakVehicleAlert(`Warning, ${alertItem.vehicleName} Overspeed`);
+                  } else if (alertItem.severity === 'danger' || tLower.includes('alarm')) {
+                    speakVehicleAlert(`${alertItem.vehicleName} Alert`);
+                  }
                 } catch (e) {}
               });
               setAlerts(prev => {
