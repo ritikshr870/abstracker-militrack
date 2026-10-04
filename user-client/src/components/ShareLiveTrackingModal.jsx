@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api, PRODUCTION_API_ORIGIN, isBrowserWeb } from '../api/client';
 import { Share2, Clock, Copy, Check, MessageSquare, ExternalLink, X, ShieldCheck } from 'lucide-react';
 
 const VALIDITY_OPTIONS = [
@@ -23,7 +23,7 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
   // Immediately register public share snapshot with server cache
   useEffect(() => {
     if (vehicle?.id) {
-      axios.post('/api/public/share', {
+      api.post('/api/public/share', {
         deviceId: vehicle.id,
         device: vehicle.rawDevice || {
           id: vehicle.id,
@@ -50,8 +50,7 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
   }, [vehicle, expiryTimestamp]);
 
   // Generate public tracking link with hash router & instantaneous payload params
-  const baseUrl = window.location.origin + window.location.pathname;
-  const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const webOrigin = isBrowserWeb ? (window.location.origin + window.location.pathname).replace(/\/$/, '') : PRODUCTION_API_ORIGIN;
   
   const params = new URLSearchParams();
   if (expiryTimestamp > 0) params.set('exp', String(expiryTimestamp));
@@ -66,7 +65,7 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
   if (vehicle.category) params.set('cat', String(vehicle.category));
   if (vehicle.address && vehicle.address !== 'Address updating...') params.set('addr', vehicle.address);
 
-  const shareUrl = `${cleanBase}/#/track/${vehicle.id}?${params.toString()}`;
+  const shareUrl = `${webOrigin}/#/track/${vehicle.id}?${params.toString()}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl);

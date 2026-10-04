@@ -2,15 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Car, Map, History, FileText, Bell, User, Volume2, VolumeX, RefreshCw, Download, BellRing, Smartphone } from 'lucide-react';
 import { useTracking } from '../contexts/TrackingContext';
-import InstallAppBanner from './InstallAppBanner';
-import InstallAppModal from './InstallAppModal';
 import NotificationSettingsModal from './NotificationSettingsModal';
 import { getNotificationPermission } from '../utils/notificationManager';
 
 export default function Layout() {
   const { stats, alerts, soundEnabled, setSoundEnabled, refreshData, loading } = useTracking();
   const location = useLocation();
-  const [showInstallModal, setShowInstallModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notifPerm, setNotifPerm] = useState(getNotificationPermission());
 
@@ -30,9 +27,6 @@ export default function Layout() {
   return (
     <div className="w-full h-full min-h-[100dvh] flex flex-col bg-slate-100 text-slate-900 overflow-hidden relative font-sans">
       
-      {/* Top PWA & APK Installation Notice Banner */}
-      <InstallAppBanner />
-
       {/* Brand Top Header */}
       <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 pt-safe shadow-xs">
         <div className="flex items-center gap-2.5 sm:gap-3">
@@ -92,25 +86,6 @@ export default function Layout() {
             <span className="hidden sm:inline">Fleet</span>
             <span className="font-mono">{stats.running}/{stats.total}</span>
           </div>
-
-          {/* Install App / APK Button (Desktop) */}
-          <button
-            onClick={() => setShowInstallModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition cursor-pointer shadow-2xs"
-            title="Download Android APK & Install App"
-          >
-            <Download size={13} className="text-blue-600" />
-            <span>Install App</span>
-          </button>
-
-          {/* Install App Button (Mobile) */}
-          <button
-            onClick={() => setShowInstallModal(true)}
-            className="sm:hidden w-8 h-8 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 cursor-pointer shadow-2xs"
-            title="Download APK / Install App"
-          >
-            <Download size={14} />
-          </button>
 
           {/* Push Notification Alerts Bell Button */}
           <button
@@ -186,11 +161,6 @@ export default function Layout() {
           );
         })}
       </nav>
-
-      {/* Install App & Android APK Modal */}
-      {showInstallModal && (
-        <InstallAppModal onClose={() => setShowInstallModal(false)} />
-      )}
 
       {/* Push Notification Permissions & Settings Modal */}
       {showNotificationModal && (

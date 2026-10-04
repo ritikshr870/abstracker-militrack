@@ -4,7 +4,14 @@
   "webDir": "dist",
   "server": {
     "androidScheme": "https",
-    "cleartext": true
+    "cleartext": true,
+    "allowNavigation": [
+      "track.abstracker.org",
+      "*.abstracker.org",
+      "*.openstreetmap.org",
+      "*.imagekit.io",
+      "*.cartocdn.com"
+    ]
   },
   "android": {
     "allowMixedContent": true

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
-import axios from 'axios';
+import { api } from '../api/client';
 import { createDirectionalVehicleIcon, VehicleCategoryIcon } from '../components/VehicleIcons';
 import { Gauge, Key, Battery, Navigation, Clock, ShieldAlert, Copy, Check, Compass, AlertCircle, Layers, RefreshCw } from 'lucide-react';
 
@@ -115,7 +115,7 @@ export default function PublicTrackingPage() {
 
     try {
       const url = `/api/public/track/${id}${expTimestamp ? `?exp=${expTimestamp}` : ''}`;
-      const res = await axios.get(url, { validateStatus: () => true });
+      const res = await api.get(url, { validateStatus: () => true });
 
       if (res.status === 410 || res.data?.expired) {
         setIsExpired(true);
@@ -184,7 +184,7 @@ export default function PublicTrackingPage() {
   // Reverse geocode fallback if address is missing
   useEffect(() => {
     if (vehicle?.latitude && vehicle?.longitude && (!vehicle.address || vehicle.address === 'Live GPS Location' || vehicle.address === 'Live GPS Coordinates')) {
-      axios.get(`/api/map/reverse-geocode?lat=${vehicle.latitude}&lng=${vehicle.longitude}`)
+      api.get(`/api/map/reverse-geocode?lat=${vehicle.latitude}&lng=${vehicle.longitude}`)
         .then(res => {
           if (res.data?.address) {
             setVehicle(prev => prev ? { ...prev, address: res.data.address } : prev);
