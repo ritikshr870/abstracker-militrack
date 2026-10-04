@@ -44,33 +44,36 @@ export function TrackingProvider({ children }) {
   const initialAlertsGeneratedRef = useRef(false);
   const prevIgnitionsRef = useRef({});
 
-  // Helper to detect ignition state transitions and speak "Engine On" / "Engine Off"
+  // Helper to get formatted vehicle number/plate
+  const getVehicleIdentifier = (dev) => {
+    if (!dev) return 'Vehicle';
+    const attrs = dev.attributes || {};
+    return attrs.plateNumber || attrs.vehicleNo || attrs.registrationNumber || dev.name || dev.uniqueId || 'Vehicle';
+  };
+
+  // Helper to detect ignition state transitions and speak "Engine On" / "Engine Off" with vehicle number
   const checkIgnitionChanges = (positionsList) => {
     if (!Array.isArray(positionsList)) return;
     positionsList.forEach(p => {
       if (!p || !p.deviceId) return;
       const devId = p.deviceId;
       const dev = devicesMap[devId];
+      const vPlate = getVehicleIdentifier(dev);
       const vName = dev?.name || 'Vehicle';
       const isIgnOn = p.attributes?.ignition === true || p.ignition === true;
       const prev = prevIgnitionsRef.current[devId];
 
       if (prev !== undefined && prev !== isIgnOn) {
-        if (isIgnOn) {
-          speakVehicleAlert(`${vName} Engine On`);
-          sendPushNotification(`${vName} Engine ON`, {
-            body: `${vName} ignition has been switched ON.`,
-            tag: `ign-on-${devId}-${Date.now()}`,
-            url: '/app/map'
-          });
-        } else {
-          speakVehicleAlert(`${vName} Engine Off`);
-          sendPushNotification(`${vName} Engine OFF`, {
-            body: `${vName} ignition has been switched OFF.`,
-            tag: `ign-off-${devId}-${Date.now()}`,
-            url: '/app/map'
-          });
-        }
+        const spoken = isIgnOn ? `${vPlate} Engine On` : `${vPlate} Engine Off`;
+        const title = isIgnOn ? `[${vPlate}] Engine ON` : `[${vPlate}] Engine OFF`;
+        const body = `Vehicle ${vPlate} (${vName}) ignition has been switched ${isIgnOn ? 'ON' : 'OFF'}.`;
+
+        speakVehicleAlert(spoken);
+        sendPushNotification(title, {
+          body: body,
+          tag: `ign-${isIgnOn ? 'on' : 'off'}-${devId}-${Date.now()}`,
+          url: '/app/map'
+        });
       }
       prevIgnitionsRef.current[devId] = isIgnOn;
     });
@@ -205,17 +208,19 @@ export function TrackingProvider({ children }) {
               const incoming = data.events.map(ev => {
                 const dev = devicesMap[ev.deviceId] || {};
                 const pos = positionsMap[ev.deviceId] || {};
+                const vPlate = getVehicleIdentifier(dev);
+                const vName = dev.name || 'Vehicle';
                 const isIgn = ev.type?.toLowerCase().includes('ignition');
                 return {
                   id: ev.id ? `ws-${ev.id}` : `ws-${Date.now()}-${Math.random()}`,
                   deviceId: ev.deviceId,
-                  vehicleName: dev.name || 'Vehicle',
-                  vehiclePlate: dev.uniqueId || '',
+                  vehicleName: vName,
+                  vehiclePlate: vPlate,
                   category: dev.category || 'car',
                   type: ev.type || 'alarm',
                   categoryType: isIgn ? 'ignition' : (ev.type?.toLowerCase().includes('overspeed') ? 'alarm' : 'movement'),
-                  title: ev.type ? ev.type.replace(/([A-Z])/g, ' $1').trim() : 'Telematics Event',
-                  message: `Triggered on ${dev.name || 'device'}`,
+                  title: `[${vPlate}] ${ev.type ? ev.type.replace(/([A-Z])/g, ' $1').trim() : 'Telematics Event'}`,
+                  message: `Alert triggered on ${vPlate} (${vName})`,
                   address: pos.address || 'GPS Coordinates',
                   severity: isIgn ? 'info' : 'danger',
                   time: ev.eventTime || new Date().toISOString()
@@ -225,7 +230,7 @@ export function TrackingProvider({ children }) {
               incoming.forEach(alertItem => {
                 try {
                   sendPushNotification(alertItem.title, {
-                    body: `${alertItem.vehicleName}: ${alertItem.message}`,
+                    body: alertItem.message,
                     tag: alertItem.id,
                     url: '/app/alerts'
                   });
@@ -235,14 +240,14 @@ export function TrackingProvider({ children }) {
                   const titLower = (alertItem.title || '').toLowerCase();
                   if (tLower.includes('ignition') || titLower.includes('ignition')) {
                     if (tLower.includes('off') || titLower.includes('off')) {
-                      speakVehicleAlert(`${alertItem.vehicleName} Engine Off`);
+                      speakVehicleAlert(`${alertItem.vehiclePlate} Engine Off`);
                     } else {
-                      speakVehicleAlert(`${alertItem.vehicleName} Engine On`);
+                      speakVehicleAlert(`${alertItem.vehiclePlate} Engine On`);
                     }
                   } else if (tLower.includes('overspeed') || titLower.includes('overspeed')) {
-                    speakVehicleAlert(`Warning, ${alertItem.vehicleName} Overspeed`);
+                    speakVehicleAlert(`Warning, ${alertItem.vehiclePlate} Overspeed`);
                   } else if (alertItem.severity === 'danger' || tLower.includes('alarm')) {
-                    speakVehicleAlert(`${alertItem.vehicleName} Alert`);
+                    speakVehicleAlert(`Alert on ${alertItem.vehiclePlate}`);
                   }
                 } catch (e) {}
               });
@@ -306,6 +311,7 @@ export function TrackingProvider({ children }) {
         id: dev.id,
         name: dev.name || 'Vehicle',
         uniqueId: dev.uniqueId,
+        plateNumber: getVehicleIdentifier(dev),
         category: dev.category || 'car',
         status: status,
         isOnline: isOnline,
@@ -318,6 +324,8 @@ export function TrackingProvider({ children }) {
         battery: attrs.batteryLevel || pos.battery || 100,
         todayDistance: todayDistKm,
         totalDistance: totalDistKm,
+        lastUpdate: pos.fixTime || pos.deviceTime || pos.serverTime || dev.lastUpdate || null,
+        serverTime: pos.serverTime || dev.lastUpdate || null,
         rawDevice: dev,
         rawPosition: pos
       };

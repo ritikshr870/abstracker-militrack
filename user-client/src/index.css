@@ -122,3 +122,24 @@ html, body, #root {
 .animate-slideUp {
   animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+@keyframes indeterminate {
+  0% { transform: translateX(-100%); width: 35%; }
+  50% { transform: translateX(60%); width: 65%; }
+  100% { transform: translateX(250%); width: 35%; }
+}
+
+@keyframes radar {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 0.5; }
+  80% { opacity: 0.5; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+.animate-indeterminate {
+  animation: indeterminate 1.6s infinite ease-in-out;
+}
+
+.animate-radar {
+  animation: radar 3s infinite linear;
+}

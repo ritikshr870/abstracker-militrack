@@ -11,18 +11,22 @@ import ReportsPage from './pages/ReportsPage';
 import AlertsPage from './pages/AlertsPage';
 import ProfilePage from './pages/ProfilePage';
 
+import AppSplashScreen from './components/AppSplashScreen';
 import PublicTrackingPage from './pages/PublicTrackingPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  const [initialSplash, setInitialSplash] = React.useState(true);
 
-  if (loading) {
-    return (
-      <div className="w-full h-full min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center text-slate-500 space-y-3">
-        <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <span className="text-xs font-bold text-slate-700">Connecting to Vehicles...</span>
-      </div>
-    );
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialSplash(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading || initialSplash) {
+    return <AppSplashScreen message="Authenticating Fleet Hardware..." />;
   }
 
   if (!user) {

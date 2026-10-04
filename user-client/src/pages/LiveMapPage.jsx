@@ -4,7 +4,7 @@ import { useTracking } from '../contexts/TrackingContext';
 import { createDirectionalVehicleIcon, VehicleCategoryIcon } from '../components/VehicleIcons';
 import EngineControlModal from '../components/EngineControlModal';
 import ShareLiveTrackingModal from '../components/ShareLiveTrackingModal';
-import { Layers, Crosshair, Navigation, Navigation2, Share2, Key, Battery, Gauge, ChevronUp, ChevronDown, Power, Compass, MapPin, Copy, Check } from 'lucide-react';
+import { Layers, Crosshair, Navigation, Navigation2, Share2, Key, Battery, Gauge, ChevronUp, ChevronDown, Power, Compass, MapPin, Copy, Check, Clock } from 'lucide-react';
 
 const MAP_TILES = {
   googleStreets: {
@@ -33,6 +33,25 @@ const MAP_TILES = {
   }
 };
 
+function formatLastUpdate(timeString) {
+  if (!timeString) return 'Real-time (Active)';
+  try {
+    const d = new Date(timeString);
+    if (isNaN(d.getTime())) return 'Active';
+    const diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (diffSec < 15) return `Just now (${timeFormatted})`;
+    if (diffSec < 60) return `${diffSec}s ago (${timeFormatted})`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago (${timeFormatted})`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ${diffMin % 60}m ago (${timeFormatted})`;
+    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeFormatted}`;
+  } catch {
+    return 'Active';
+  }
+}
+
 function getCardinalDirection(deg) {
   if (typeof deg !== 'number' || isNaN(deg)) return 'N';
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -50,6 +69,7 @@ export default function LiveMapPage() {
   const [activeTile, setActiveTile] = useState('googleStreets');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
+  const [isolateSelected, setIsolateSelected] = useState(true); // Isolate selected vehicle on map by default
   const [isSheetExpanded, setIsSheetExpanded] = useState(true); // Expanded by default to show detailed location
   const [engineTargetVehicle, setEngineTargetVehicle] = useState(null);
   const [copiedLocation, setCopiedLocation] = useState(false);
@@ -119,17 +139,34 @@ export default function LiveMapPage() {
     mapRef.current.invalidateSize();
   }, [activeTile]);
 
-  // Live Vehicle Markers: Realistic top-down vector icons, exact GPS coordinates, NO path lines
+  // Live Vehicle Markers: Isolated single vehicle or all fleet based on user preference
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
 
-    liveVehicles.forEach(v => {
+    // Isolate selected vehicle if selected and isolateSelected is true
+    const vehiclesToDisplay = (isolateSelected && selectedVehicle)
+      ? [selectedVehicle]
+      : liveVehicles;
+
+    // Remove any markers from the map that should no longer be displayed
+    const activeIds = new Set(vehiclesToDisplay.map(v => v.id));
+    Object.keys(markersRef.current).forEach(id => {
+      const numId = Number(id);
+      if (!activeIds.has(numId) && !activeIds.has(id)) {
+        if (markersRef.current[id]) {
+          markersRef.current[id].remove();
+          delete markersRef.current[id];
+        }
+      }
+    });
+
+    vehiclesToDisplay.forEach(v => {
       if (!v.latitude || !v.longitude) return;
 
       const isSel = selectedVehicle?.id === v.id;
       const icon = createDirectionalVehicleIcon({
-        name: v.name,
+        name: v.plateNumber || v.name,
         speed: v.speed,
         course: v.course,
         status: v.status,
@@ -155,7 +192,7 @@ export default function LiveMapPage() {
     if (selectedVehicle?.latitude && selectedVehicle?.longitude && followVehicle) {
       map.panTo([selectedVehicle.latitude, selectedVehicle.longitude], { animate: true, duration: 0.6 });
     }
-  }, [liveVehicles, selectedVehicle, followVehicle]);
+  }, [liveVehicles, selectedVehicle, followVehicle, isolateSelected]);
 
   const handleCenterSelected = () => {
     setFollowVehicle(true);
@@ -238,6 +275,32 @@ export default function LiveMapPage() {
 
       {/* Floating Vehicle Switcher Top-Left */}
       <div className="absolute top-4 left-4 right-18 z-20 overflow-x-auto custom-scroll flex items-center gap-1.5 pb-1">
+        {selectedVehicle && (
+          <button
+            onClick={() => setIsolateSelected(!isolateSelected)}
+            className={`px-3 py-1.5 rounded-2xl backdrop-blur-md border text-xs font-black shrink-0 transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
+              isolateSelected
+                ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/25 ring-2 ring-blue-500/20'
+                : 'bg-white/95 text-slate-700 border-slate-200 hover:bg-white'
+            }`}
+            title="Toggle Single Vehicle Isolation vs Full Fleet"
+          >
+            {isolateSelected ? (
+              <>
+                <Crosshair size={13} className="text-white shrink-0" />
+                <span className="truncate max-w-[130px]">Isolated: {selectedVehicle.plateNumber || selectedVehicle.name}</span>
+                <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-md ml-0.5">Show All</span>
+              </>
+            ) : (
+              <>
+                <Layers size={13} className="text-blue-600 shrink-0" />
+                <span>All Fleet ({liveVehicles.length})</span>
+                <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.2 rounded-md ml-0.5">Focus Single</span>
+              </>
+            )}
+          </button>
+        )}
+
         {liveVehicles.map(v => {
           const isSel = selectedVehicle?.id === v.id;
           return (
@@ -245,6 +308,7 @@ export default function LiveMapPage() {
               key={v.id}
               onClick={() => {
                 setSelectedVehicleId(v.id);
+                setIsolateSelected(true);
                 setFollowVehicle(true);
               }}
               className={`px-3 py-1.5 rounded-2xl backdrop-blur-md border text-xs font-bold shrink-0 transition flex items-center gap-2 shadow-sm cursor-pointer ${
@@ -256,7 +320,7 @@ export default function LiveMapPage() {
               <div className="w-5 h-5 rounded-lg bg-slate-50 flex items-center justify-center p-0.5">
                 <VehicleCategoryIcon category={v.category} className="w-full h-full object-contain" />
               </div>
-              <span className="truncate max-w-[120px]">{v.name}</span>
+              <span className="truncate max-w-[120px]">{v.plateNumber || v.name}</span>
               <span className={`w-2 h-2 rounded-full ${v.status === 'running' ? 'bg-emerald-500 animate-pulse' : (v.status === 'idle' ? 'bg-amber-500' : 'bg-red-500')}`}></span>
             </button>
           );
@@ -282,10 +346,17 @@ export default function LiveMapPage() {
                   <VehicleCategoryIcon category={selectedVehicle.category} className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900 leading-tight tracking-tight">
-                    {selectedVehicle.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-black text-slate-900 leading-tight tracking-tight">
+                      {selectedVehicle.name}
+                    </h3>
+                    {selectedVehicle.plateNumber && selectedVehicle.plateNumber !== selectedVehicle.name && (
+                      <span className="text-[10px] font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">
+                        {selectedVehicle.plateNumber}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className="text-[11px] text-slate-500 font-semibold capitalize">
                       {selectedVehicle.category}
                     </span>
@@ -295,6 +366,11 @@ export default function LiveMapPage() {
                     }`}>
                       {selectedVehicle.status === 'running' ? 'Moving' : (selectedVehicle.status === 'idle' ? 'Idling' : 'Parked')}
                     </span>
+                    <span className="text-[10px] text-slate-300">•</span>
+                    <div className="flex items-center gap-1 text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
+                      <Clock size={11} className="shrink-0" />
+                      <span>{formatLastUpdate(selectedVehicle.lastUpdate)}</span>
+                    </div>
                   </div>
                 </div>
               </div>

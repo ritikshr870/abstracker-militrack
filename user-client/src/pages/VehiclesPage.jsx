@@ -5,7 +5,26 @@ import { VehicleCategoryIcon } from '../components/VehicleIcons';
 import EngineControlModal from '../components/EngineControlModal';
 import ShareLiveTrackingModal from '../components/ShareLiveTrackingModal';
 import VehicleLoadingAnimation from '../components/VehicleLoadingAnimation';
-import { Search, Navigation, Share2, Play, MapPin, Key, Battery, Navigation2, Copy, Check, Power, Gauge, Compass } from 'lucide-react';
+import { Search, Navigation, Share2, Play, MapPin, Key, Battery, Navigation2, Copy, Check, Power, Gauge, Compass, Clock } from 'lucide-react';
+
+function formatLastUpdate(timeString) {
+  if (!timeString) return 'Real-time (Active)';
+  try {
+    const d = new Date(timeString);
+    if (isNaN(d.getTime())) return 'Active';
+    const diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffSec < 20) return `Just now (${timeFormatted})`;
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago (${timeFormatted})`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago (${timeFormatted})`;
+    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeFormatted}`;
+  } catch {
+    return 'Active';
+  }
+}
 
 export default function VehiclesPage() {
   const {
@@ -148,9 +167,16 @@ export default function VehiclesPage() {
                           <VehicleCategoryIcon category={v.category} className="w-full h-full object-contain" />
                         </div>
                         <div>
-                          <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition leading-tight tracking-tight">
-                            {v.name}
-                          </h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition leading-tight tracking-tight">
+                              {v.name}
+                            </h3>
+                            {v.plateNumber && v.plateNumber !== v.name && (
+                              <span className="text-[10px] font-mono font-bold bg-slate-100 px-1.5 py-0.2 rounded text-slate-600 border border-slate-200">
+                                {v.plateNumber}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-slate-500 font-semibold mt-0.5 capitalize">
                             {v.category}
                           </p>
@@ -221,6 +247,17 @@ export default function VehiclesPage() {
                       >
                         {copiedId === v.id ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
                       </button>
+                    </div>
+
+                    {/* Last Update & Telematics Heartbeat */}
+                    <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100 text-slate-500 font-medium">
+                      <div className="flex items-center gap-1.5 text-slate-600">
+                        <Clock size={12} className="text-blue-500 shrink-0" />
+                        <span>Last Update: <strong className="text-slate-800">{formatLastUpdate(v.lastUpdate)}</strong></span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-slate-400">
+                        {v.uniqueId}
+                      </span>
                     </div>
                   </div>
 

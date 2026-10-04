@@ -43,12 +43,11 @@ export async function ensureAndroidChannel() {
   if (!Capacitor.isNativePlatform() || isChannelCreated) return;
   try {
     await LocalNotifications.createChannel({
-      id: 'telematics-alerts',
+      id: 'abstracker-telematics-alerts',
       name: 'AbsTracker Vehicle Alerts',
-      description: 'Critical ignition, overspeed, and security telematics alerts',
-      importance: 5, // MAX importance for heads-up alert banner
-      visibility: 1, // Public visibility on lock screen
-      sound: 'alert.wav',
+      description: 'Critical ignition, overspeed, and vehicle security telematics alerts',
+      importance: 5, // MAX importance: heads-up banner with sound & vibration
+      visibility: 1, // Show on lock screen
       vibration: true,
       lights: true,
       lightColor: '#2563EB'
@@ -202,7 +201,7 @@ export async function sendPushNotification(title, options = {}) {
             title: notificationTitle,
             body: notificationBody,
             id: notifIdCounter,
-            channelId: 'telematics-alerts',
+            channelId: 'abstracker-telematics-alerts',
             smallIcon: 'ic_launcher',
             largeIcon: 'ic_launcher',
             extra: {

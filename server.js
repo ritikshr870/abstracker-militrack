@@ -981,11 +981,44 @@ app.get('/api/session', async (req, res) => {
     if (liveRes.status === 200 && liveRes.data && liveRes.data.id) {
       forwardResponseCookies(liveRes, res);
       return res.json(liveRes.data);
-    } else {
-      res.clearCookie('JSESSIONID', { path: '/' });
-      res.clearCookie('JSESSIONID', { path: '/api' });
-      return res.status(401).json({ authenticated: false, error: 'Session expired' });
     }
+
+    // Auto-reauthenticate if caller provided Authorization header and cookie expired
+    if (reqAuth && reqAuth.startsWith('Basic ')) {
+      try {
+        const decoded = Buffer.from(reqAuth.slice(6).trim(), 'base64').toString('utf8');
+        const colonIdx = decoded.indexOf(':');
+        if (colonIdx > 0) {
+          const userEmail = decoded.substring(0, colonIdx);
+          const userPass = decoded.substring(colonIdx + 1);
+          const params = new URLSearchParams();
+          params.append('email', userEmail);
+          params.append('password', userPass);
+
+          const reAuthRes = await axios.post(`${MILLITRACK_HOST}/api/session`, params, {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Origin': MILLITRACK_HOST,
+              'Accept': 'application/json'
+            },
+            timeout: 8000,
+            validateStatus: () => true
+          });
+
+          if (reAuthRes.status === 200 && reAuthRes.data && reAuthRes.data.id) {
+            forwardResponseCookies(reAuthRes, res);
+            return res.json(reAuthRes.data);
+          }
+        }
+      } catch (reErr) {
+        console.warn('[Session] Basic auth auto-reauth error:', reErr.message);
+      }
+    }
+
+    res.clearCookie('JSESSIONID', { path: '/' });
+    res.clearCookie('JSESSIONID', { path: '/api' });
+    return res.status(401).json({ authenticated: false, error: 'Session expired' });
   } catch (e) {
     return res.status(401).json({ authenticated: false, error: 'Session verification failed' });
   }
