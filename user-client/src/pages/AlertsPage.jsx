@@ -7,8 +7,6 @@ import {
   Key,
   Zap,
   ShieldAlert,
-  Volume2,
-  VolumeX,
   Trash2,
   Navigation,
   MapPin,
@@ -41,8 +39,6 @@ function formatAlertTime(isoStr) {
 export default function AlertsPage() {
   const {
     alerts,
-    soundEnabled,
-    setSoundEnabled,
     clearAlerts,
     deleteAlert,
     setSelectedVehicleId,
@@ -149,41 +145,24 @@ export default function AlertsPage() {
       {/* Header */}
       <div className="p-3.5 sm:p-4 bg-white border-b border-slate-200/90 flex items-center justify-between shadow-xs shrink-0">
         <div>
-          <h2 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <span>Security &amp; Operational Alerts</span>
-            <span className="text-[11px] font-mono font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
-              {alerts.length} Total
-            </span>
+          <h2 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Security &amp; Operational Alerts
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
             Real-time ignition triggers, safety speed alarms, and battery status
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {alerts.length > 0 && (
-            <button
-              onClick={clearAlerts}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 hover:border-red-200 text-xs font-bold transition cursor-pointer"
-              title="Clear all alerts"
-            >
-              <Trash2 size={13} />
-              <span className="hidden sm:inline">Clear All</span>
-            </button>
-          )}
-
+        {alerts.length > 0 && (
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
-              soundEnabled
-                ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-            }`}
+            onClick={clearAlerts}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 hover:border-red-200 text-xs font-bold transition cursor-pointer"
+            title="Clear all alerts"
           >
-            {soundEnabled ? <Volume2 size={14} className="text-blue-600" /> : <VolumeX size={14} className="text-slate-400" />}
-            <span>{soundEnabled ? 'Chime ON' : 'Muted'}</span>
+            <Trash2 size={13} />
+            <span>Clear All</span>
           </button>
-        </div>
+        )}
       </div>
 
       {/* Filter Tabs */}

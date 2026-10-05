@@ -70,7 +70,7 @@ export default function LiveMapPage() {
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
   const [isolateSelected, setIsolateSelected] = useState(true); // Isolate selected vehicle on map by default
-  const [isSheetExpanded, setIsSheetExpanded] = useState(true); // Expanded by default to show detailed location
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false); // Collapsed by default so map is full & not cropped
   const [engineTargetVehicle, setEngineTargetVehicle] = useState(null);
   const [copiedLocation, setCopiedLocation] = useState(false);
   const [shareTargetVehicle, setShareTargetVehicle] = useState(null);
@@ -327,66 +327,91 @@ export default function LiveMapPage() {
         })}
       </div>
 
-      {/* Detailed Live Vehicle Location Card */}
+      {/* Floating Live Vehicle Details Sheet (Slim by default, tap to expand full) */}
       {selectedVehicle && (
         <div className="absolute bottom-3 left-3 right-3 md:left-6 md:right-auto md:bottom-6 md:w-[440px] z-20">
-          <div className="bg-white/98 backdrop-blur-2xl border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 animate-slideUp">
-            
-            <button 
-              onClick={() => setIsSheetExpanded(!isSheetExpanded)}
-              className="w-full flex items-center justify-center -mt-2 -mb-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+          <div 
+            onClick={() => !isSheetExpanded && setIsSheetExpanded(true)}
+            className={`bg-white/98 backdrop-blur-2xl border border-slate-200/90 rounded-3xl shadow-2xl transition-all duration-300 ease-in-out cursor-pointer ${
+              isSheetExpanded ? 'p-4 sm:p-5 space-y-3' : 'p-3 hover:bg-white'
+            }`}
+          >
+            {/* Sheet Drag Handle / Indicator */}
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSheetExpanded(!isSheetExpanded);
+              }}
+              className="w-full flex items-center justify-center -mt-1 pb-1 text-slate-300 hover:text-slate-500 cursor-pointer"
             >
-              {isSheetExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-            </button>
+              <div className="w-10 h-1 rounded-full bg-slate-300"></div>
+            </div>
 
             {/* Header: Avatar, Name, Status & Live Speed */}
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-13 h-12 shrink-0 p-0.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center">
+              <div className="flex items-center gap-2.5">
+                <div className="w-11 h-10 shrink-0 p-0.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center">
                   <VehicleCategoryIcon category={selectedVehicle.category} className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-black text-slate-900 leading-tight tracking-tight">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-tight tracking-tight">
                       {selectedVehicle.name}
                     </h3>
                     {selectedVehicle.plateNumber && selectedVehicle.plateNumber !== selectedVehicle.name && (
-                      <span className="text-[10px] font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">
+                      <span className="text-[9px] font-mono font-bold bg-slate-100 px-1 py-0.2 rounded text-slate-600 border border-slate-200">
                         {selectedVehicle.plateNumber}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <span className="text-[11px] text-slate-500 font-semibold capitalize">
-                      {selectedVehicle.category}
-                    </span>
-                    <span className="text-[10px] text-slate-300">•</span>
                     <span className={`text-[10px] font-bold uppercase ${
                       selectedVehicle.status === 'running' ? 'text-emerald-600' : (selectedVehicle.status === 'idle' ? 'text-amber-600' : 'text-red-600')
                     }`}>
                       {selectedVehicle.status === 'running' ? 'Moving' : (selectedVehicle.status === 'idle' ? 'Idling' : 'Parked')}
                     </span>
                     <span className="text-[10px] text-slate-300">•</span>
-                    <div className="flex items-center gap-1 text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
-                      <Clock size={11} className="shrink-0" />
-                      <span>{formatLastUpdate(selectedVehicle.lastUpdate)}</span>
-                    </div>
+                    <span className="text-[10px] text-slate-500 font-semibold">{formatLastUpdate(selectedVehicle.lastUpdate)}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-200 shadow-2xs">
-                <Gauge size={16} className={selectedVehicle.status === 'running' ? 'text-emerald-600' : 'text-slate-400'} />
-                <div className="text-right leading-none">
-                  <span className="text-base font-black text-slate-900 font-mono tabular-nums">{selectedVehicle.speed}</span>
-                  <span className="text-[9px] text-slate-500 font-bold block">km/h</span>
+              {/* Speed & Quick Controls */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 text-right leading-none">
+                  <span className="text-sm font-black text-slate-900 font-mono tabular-nums">{selectedVehicle.speed}</span>
+                  <span className="text-[8px] text-slate-400 font-bold block">km/h</span>
                 </div>
+
+                {!isSheetExpanded && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNavigateGoogle(e);
+                    }}
+                    className="p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+                    title="Navigate in Google Maps"
+                  >
+                    <Navigation2 size={14} />
+                  </button>
+                )}
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSheetExpanded(!isSheetExpanded);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                  title={isSheetExpanded ? "Collapse" : "Tap for full details"}
+                >
+                  {isSheetExpanded ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
               </div>
             </div>
 
             {/* Expanded Detailed Location & Telematics Attributes */}
             {isSheetExpanded && (
-              <div className="space-y-2.5 pt-1 border-t border-slate-100 animate-fadeIn">
+              <div className="space-y-3 pt-2 border-t border-slate-100 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
                 {/* 4-Stat Grid */}
                 <div className="grid grid-cols-4 gap-1.5 text-[11px]">
                   <div className="bg-slate-50 p-2 rounded-2xl border border-slate-100">
@@ -430,48 +455,48 @@ export default function LiveMapPage() {
                     {copiedLocation ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
                   </button>
                 </div>
+
+                {/* Complete Un-Truncated Detailed Address */}
+                <div className="p-2.5 bg-slate-50/80 rounded-2xl border border-slate-100 flex items-start gap-2 text-xs leading-relaxed text-slate-700 font-medium">
+                  <MapPin size={15} className="text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Current Location Address:</span>
+                    <p className="text-slate-900 font-semibold mt-0.5">{selectedVehicle.address || 'GPS Location active'}</p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleNavigateGoogle}
+                    className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 cursor-pointer"
+                  >
+                    <Navigation2 size={15} />
+                    <span>Navigate</span>
+                  </button>
+
+                  <button
+                    onClick={() => setEngineTargetVehicle(selectedVehicle)}
+                    className={`px-4 py-3 rounded-2xl text-xs font-black transition flex items-center justify-center gap-1.5 border shadow-xs cursor-pointer ${
+                      isEngineOn
+                        ? 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                    }`}
+                  >
+                    <Power size={15} />
+                    <span>{isEngineOn ? 'Stop' : 'Start'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleShare}
+                    className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-emerald-600 border border-slate-200 transition cursor-pointer"
+                    title="Share on WhatsApp"
+                  >
+                    <Share2 size={15} />
+                  </button>
+                </div>
               </div>
             )}
-
-            {/* Complete Un-Truncated Detailed Address */}
-            <div className="p-2.5 bg-slate-50/80 rounded-2xl border border-slate-100 flex items-start gap-2 text-xs leading-relaxed text-slate-700 font-medium">
-              <MapPin size={15} className="text-red-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Current Location Address:</span>
-                <p className="text-slate-900 font-semibold mt-0.5">{selectedVehicle.address || 'GPS Location active'}</p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={handleNavigateGoogle}
-                className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 cursor-pointer"
-              >
-                <Navigation2 size={15} />
-                <span>Navigate</span>
-              </button>
-
-              <button
-                onClick={() => setEngineTargetVehicle(selectedVehicle)}
-                className={`px-4 py-3 rounded-2xl text-xs font-black transition flex items-center justify-center gap-1.5 border shadow-xs cursor-pointer ${
-                  isEngineOn
-                    ? 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                }`}
-              >
-                <Power size={15} />
-                <span>{isEngineOn ? 'Stop' : 'Start'}</span>
-              </button>
-
-              <button
-                onClick={handleShare}
-                className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-emerald-600 border border-slate-200 transition cursor-pointer"
-                title="Share on WhatsApp"
-              >
-                <Share2 size={15} />
-              </button>
-            </div>
           </div>
         </div>
       )}

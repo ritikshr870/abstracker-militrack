@@ -80,13 +80,6 @@ export default function Layout() {
 
         {/* Controls: Install App, Notification Bell, Live Status, Refresh, and Sound Toggle */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Active Fleet Counter Badge */}
-          <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="hidden sm:inline">Fleet</span>
-            <span className="font-mono">{stats.running}/{stats.total}</span>
-          </div>
-
           {/* Push Notification Alerts Bell Button */}
           <button
             onClick={() => setShowNotificationModal(true)}

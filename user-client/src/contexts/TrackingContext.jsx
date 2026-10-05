@@ -44,29 +44,48 @@ export function TrackingProvider({ children }) {
   const initialAlertsGeneratedRef = useRef(false);
   const prevIgnitionsRef = useRef({});
 
-  // Helper to get formatted vehicle number/plate
-  const getVehicleIdentifier = (dev) => {
-    if (!dev) return 'Vehicle';
+  // Clean vehicle plate and label parser to prevent repetitive text
+  const parseVehicleNames = (dev) => {
+    if (!dev) return { plate: 'Vehicle', label: '', display: 'Vehicle' };
+    const rawName = (dev.name || '').trim();
     const attrs = dev.attributes || {};
-    return attrs.plateNumber || attrs.vehicleNo || attrs.registrationNumber || dev.name || dev.uniqueId || 'Vehicle';
+    const attrPlate = (attrs.plateNumber || attrs.vehicleNo || attrs.registrationNumber || '').trim();
+
+    // Check if name has format like "BE25PA0494(UDASNU-THANA)" or "BR01PM2106 (TOWN THANA)"
+    const match = rawName.match(/^([A-Z0-9\-_]+)\s*\((.*?)\)$/i);
+    if (match) {
+      const p = match[1].trim();
+      const l = match[2].trim();
+      return { plate: p, label: l, display: `${p} (${l})` };
+    }
+
+    if (attrPlate && attrPlate !== rawName && !rawName.includes(attrPlate)) {
+      return { plate: attrPlate, label: rawName, display: `${attrPlate} (${rawName})` };
+    }
+
+    return { plate: attrPlate || rawName || 'Vehicle', label: '', display: rawName || 'Vehicle' };
   };
 
-  // Helper to detect ignition state transitions and speak "Engine On" / "Engine Off" with vehicle number
+  const getVehicleIdentifier = (dev) => {
+    return parseVehicleNames(dev).display;
+  };
+
+  // Helper to detect ignition state transitions and speak "Engine On" / "Engine Off" with clean vehicle plate
   const checkIgnitionChanges = (positionsList) => {
     if (!Array.isArray(positionsList)) return;
     positionsList.forEach(p => {
       if (!p || !p.deviceId) return;
       const devId = p.deviceId;
       const dev = devicesMap[devId];
-      const vPlate = getVehicleIdentifier(dev);
-      const vName = dev?.name || 'Vehicle';
+      const { plate, label, display } = parseVehicleNames(dev);
       const isIgnOn = p.attributes?.ignition === true || p.ignition === true;
       const prev = prevIgnitionsRef.current[devId];
 
       if (prev !== undefined && prev !== isIgnOn) {
-        const spoken = isIgnOn ? `${vPlate} Engine On` : `${vPlate} Engine Off`;
-        const title = isIgnOn ? `[${vPlate}] Engine ON` : `[${vPlate}] Engine OFF`;
-        const body = `Vehicle ${vPlate} (${vName}) ignition has been switched ${isIgnOn ? 'ON' : 'OFF'}.`;
+        const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const spoken = `${plate} Engine ${isIgnOn ? 'On' : 'Off'}`;
+        const title = `[${plate}] Engine ${isIgnOn ? 'ON' : 'OFF'}`;
+        const body = `${label ? label + ': ' : ''}Ignition switched ${isIgnOn ? 'ON' : 'OFF'} at ${timeStr}.`;
 
         speakVehicleAlert(spoken);
         sendPushNotification(title, {
@@ -208,19 +227,18 @@ export function TrackingProvider({ children }) {
               const incoming = data.events.map(ev => {
                 const dev = devicesMap[ev.deviceId] || {};
                 const pos = positionsMap[ev.deviceId] || {};
-                const vPlate = getVehicleIdentifier(dev);
-                const vName = dev.name || 'Vehicle';
+                const { plate, label, display } = parseVehicleNames(dev);
                 const isIgn = ev.type?.toLowerCase().includes('ignition');
                 return {
                   id: ev.id ? `ws-${ev.id}` : `ws-${Date.now()}-${Math.random()}`,
                   deviceId: ev.deviceId,
-                  vehicleName: vName,
-                  vehiclePlate: vPlate,
+                  vehicleName: display,
+                  vehiclePlate: plate,
                   category: dev.category || 'car',
                   type: ev.type || 'alarm',
                   categoryType: isIgn ? 'ignition' : (ev.type?.toLowerCase().includes('overspeed') ? 'alarm' : 'movement'),
-                  title: `[${vPlate}] ${ev.type ? ev.type.replace(/([A-Z])/g, ' $1').trim() : 'Telematics Event'}`,
-                  message: `Alert triggered on ${vPlate} (${vName})`,
+                  title: `[${plate}] ${ev.type ? ev.type.replace(/([A-Z])/g, ' $1').trim() : 'Telematics Event'}`,
+                  message: `${label ? label + ': ' : ''}Alert recorded on ${plate}`,
                   address: pos.address || 'GPS Coordinates',
                   severity: isIgn ? 'info' : 'danger',
                   time: ev.eventTime || new Date().toISOString()

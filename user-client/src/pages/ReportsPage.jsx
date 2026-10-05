@@ -65,7 +65,7 @@ export default function ReportsPage() {
 
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards' (table by default for exact grid presentation)
+  const [viewMode, setViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768) ? 'cards' : 'table'); // Default to cards on mobile for mobile-first experience
   const [exportingType, setExportingType] = useState(null); // 'csv' | 'xlsx' | 'pdf' | null
   const [toastMessage, setToastMessage] = useState('');
   const [copiedId, setCopiedId] = useState(null);
@@ -332,12 +332,12 @@ export default function ReportsPage() {
       dateRange: rangeLabel,
       vehicleLabel: vehicleLabel,
       vehicleScope: count === 1 ? singleVeh?.name : `${count} Vehicles Selected`,
-      kpis: {
+      kpis: count === 1 ? {
         totalKm: totalTripKm,
         totalTime: `${totalDurationHrs} hrs`,
         maxSpeed: `${maxSpeedKmh} km/h`,
         avgSpeed: `${avgSpeedKmh} km/h`
-      }
+      } : null
     };
   };
 
@@ -1068,17 +1068,19 @@ export default function ReportsPage() {
           </table>
         </div>
 
-        {/* Aggregate KPI Stats */}
-        <div className="flex items-center gap-2">
-          <div className="bg-white px-3 py-2 rounded-2xl border border-slate-200 shadow-2xs">
-            <span className="text-[9px] text-slate-400 font-bold block uppercase">Total Distance</span>
-            <span className="text-sm font-black text-indigo-600 font-mono tabular-nums">{totalTripKm} km</span>
+        {/* Individual Vehicle KPI Stats for single selection (multi-vehicle displays individual cards below) */}
+        {selectedVehicleIds.length === 1 && (
+          <div className="flex items-center gap-2">
+            <div className="bg-white px-3 py-2 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[9px] text-slate-400 font-bold block uppercase">Total Distance</span>
+              <span className="text-sm font-black text-indigo-600 font-mono tabular-nums">{totalTripKm} km</span>
+            </div>
+            <div className="bg-white px-3 py-2 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[9px] text-slate-400 font-bold block uppercase">Records</span>
+              <span className="text-sm font-black text-slate-800 font-mono tabular-nums">{displayedReportData.length}</span>
+            </div>
           </div>
-          <div className="bg-white px-3 py-2 rounded-2xl border border-slate-200 shadow-2xs">
-            <span className="text-[9px] text-slate-400 font-bold block uppercase">Total Vehicles</span>
-            <span className="text-sm font-black text-slate-800 font-mono tabular-nums">{displayedReportData.length}</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Main Report Body: Cards or Exact Grid Table */}

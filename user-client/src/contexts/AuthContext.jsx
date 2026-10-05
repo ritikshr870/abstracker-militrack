@@ -43,6 +43,12 @@ export function AuthProvider({ children }) {
         if (isMounted && res.data && res.data.id) {
           setUser(res.data);
           localStorage.setItem('abstracker_user', JSON.stringify(res.data));
+          try {
+            const curAuth = localStorage.getItem('abstracker_auth_header');
+            if (curAuth && typeof window !== 'undefined' && window.AndroidNative?.startMonitoring) {
+              window.AndroidNative.startMonitoring(curAuth);
+            }
+          } catch (e) {}
           if (isMounted) setLoading(false);
           return;
         }
@@ -112,12 +118,22 @@ export function AuthProvider({ children }) {
     if (res.data && res.data.id) {
       setUser(res.data);
       localStorage.setItem('abstracker_user', JSON.stringify(res.data));
+      try {
+        if (typeof window !== 'undefined' && window.AndroidNative?.startMonitoring) {
+          window.AndroidNative.startMonitoring(authHeader);
+        }
+      } catch (e) {}
       return res.data;
     }
     throw new Error('Authentication failed');
   };
 
   const logout = async () => {
+    try {
+      if (typeof window !== 'undefined' && window.AndroidNative?.stopMonitoring) {
+        window.AndroidNative.stopMonitoring();
+      }
+    } catch (e) {}
     try {
       await api.delete('/api/session');
     } catch {}
