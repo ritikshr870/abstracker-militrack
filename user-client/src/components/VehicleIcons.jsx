@@ -135,18 +135,24 @@ export function getVehicleImageUrl(category = '') {
  * Vehicle Category Icon Component for Dashboard, Vehicles Page, and Modals
  * Renders the clean vehicle image icon in a crisp card container with fallback
  */
-export function VehicleCategoryIcon({ category = '', className = 'w-full h-full' }) {
+export function VehicleCategoryIcon({ category = '', size = 24, className = '' }) {
   const [imgError, setImgError] = React.useState(false);
   const imageUrl = getVehicleImageUrl(category);
 
+  const pixelSize = typeof size === 'number' ? `${size}px` : (size || '24px');
+  const iconPixel = typeof size === 'number' ? Math.max(12, Math.round(size * 0.75)) : 18;
+
   if (!imgError && imageUrl) {
     return (
-      <div className="w-full h-full bg-white rounded-2xl p-1 flex items-center justify-center shadow-2xs border border-slate-100">
+      <div
+        style={{ width: pixelSize, height: pixelSize, minWidth: pixelSize, minHeight: pixelSize }}
+        className={`bg-white rounded-xl p-0.5 flex items-center justify-center shrink-0 border border-slate-100 shadow-2xs overflow-hidden ${className}`}
+      >
         <img
           src={imageUrl}
           alt={category || 'Vehicle'}
           onError={() => setImgError(true)}
-          className={`${className} object-contain shrink-0`}
+          className="w-full h-full object-contain shrink-0"
           loading="lazy"
         />
       </div>
@@ -155,15 +161,43 @@ export function VehicleCategoryIcon({ category = '', className = 'w-full h-full'
 
   const cat = (category || '').toLowerCase();
   if (cat.includes('truck') || cat.includes('dumper') || cat.includes('lorry')) {
-    return <div className="w-full h-full bg-white rounded-2xl p-1 flex items-center justify-center shadow-2xs"><Truck className="w-6 h-6 text-amber-500" /></div>;
+    return (
+      <div
+        style={{ width: pixelSize, height: pixelSize, minWidth: pixelSize, minHeight: pixelSize }}
+        className={`bg-white rounded-xl p-0.5 flex items-center justify-center shrink-0 border border-slate-100 shadow-2xs ${className}`}
+      >
+        <Truck size={iconPixel} className="text-amber-500" />
+      </div>
+    );
   }
   if (cat.includes('bike') || cat.includes('motorcycle') || cat.includes('scooter')) {
-    return <div className="w-full h-full bg-white rounded-2xl p-1 flex items-center justify-center shadow-2xs"><Bike className="w-6 h-6 text-indigo-500" /></div>;
+    return (
+      <div
+        style={{ width: pixelSize, height: pixelSize, minWidth: pixelSize, minHeight: pixelSize }}
+        className={`bg-white rounded-xl p-0.5 flex items-center justify-center shrink-0 border border-slate-100 shadow-2xs ${className}`}
+      >
+        <Bike size={iconPixel} className="text-indigo-500" />
+      </div>
+    );
   }
   if (cat.includes('bus') || cat.includes('coach')) {
-    return <div className="w-full h-full bg-white rounded-2xl p-1 flex items-center justify-center shadow-2xs"><Bus className="w-6 h-6 text-emerald-600" /></div>;
+    return (
+      <div
+        style={{ width: pixelSize, height: pixelSize, minWidth: pixelSize, minHeight: pixelSize }}
+        className={`bg-white rounded-xl p-0.5 flex items-center justify-center shrink-0 border border-slate-100 shadow-2xs ${className}`}
+      >
+        <Bus size={iconPixel} className="text-emerald-600" />
+      </div>
+    );
   }
-  return <div className="w-full h-full bg-white rounded-2xl p-1 flex items-center justify-center shadow-2xs"><Car className="w-6 h-6 text-blue-600" /></div>;
+  return (
+    <div
+      style={{ width: pixelSize, height: pixelSize, minWidth: pixelSize, minHeight: pixelSize }}
+      className={`bg-white rounded-xl p-0.5 flex items-center justify-center shrink-0 border border-slate-100 shadow-2xs ${className}`}
+    >
+      <Car size={iconPixel} className="text-blue-600" />
+    </div>
+  );
 }
 
 /**

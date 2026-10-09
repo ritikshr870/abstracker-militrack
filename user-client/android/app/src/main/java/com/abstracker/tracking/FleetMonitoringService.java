@@ -1,5 +1,6 @@
 package com.abstracker.tracking;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -8,14 +9,14 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
 
@@ -32,17 +33,15 @@ import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-
-import android.app.AlarmManager;
-import android.os.SystemClock;
 
 public class FleetMonitoringService extends Service implements TextToSpeech.OnInitListener {
 
     private static final String TAG = "FleetMonitoringService";
-    public static final String CHANNEL_SERVICE_ID = "abstracker-service-channel";
-    public static final String CHANNEL_ALERT_ID = "abstracker-telematics-alerts";
+    public static final String CHANNEL_SERVICE_ID = "abstracker-service-channel-v3";
+    public static final String CHANNEL_ALERT_ID = "abstracker-telematics-alerts-v3";
     private static final int SERVICE_NOTIFICATION_ID = 8801;
 
     private Thread workerThread;
@@ -54,6 +53,8 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
     private final Map<Integer, String> deviceNames = new HashMap<>();
     // Ignition history: deviceId -> isIgnitionOn
     private final Map<Integer, Boolean> prevIgnitions = new HashMap<>();
+    // Overspeed cooldown: deviceId -> timestamp
+    private final Map<Integer, Long> lastOverspeedAlerts = new HashMap<>();
     private long lastDevicesFetchTime = 0;
 
     @Override
@@ -62,6 +63,7 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         Log.i(TAG, "FleetMonitoringService onCreate");
 
         createNotificationChannels();
+        loadSavedIgnitionStates();
         initTextToSpeech();
     }
 
@@ -71,7 +73,18 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
 
         // Start as foreground service to prevent OS kills
         Notification serviceNotification = buildServiceNotification();
-        startForeground(SERVICE_NOTIFICATION_ID, serviceNotification);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(SERVICE_NOTIFICATION_ID, serviceNotification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                startForeground(SERVICE_NOTIFICATION_ID, serviceNotification);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "startForeground error: " + t.getMessage(), t);
+            try {
+                startForeground(SERVICE_NOTIFICATION_ID, serviceNotification);
+            } catch (Throwable ignored) {}
+        }
 
         startWorkerThread();
 
@@ -93,13 +106,14 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
                 }
 
                 try {
-                    Thread.sleep(8000); // 8-second continuous polling
+                    Thread.sleep(6000); // 6-second continuous polling
                 } catch (InterruptedException ie) {
                     break;
                 }
             }
         }, "AbsTrackerWorkerThread");
-        workerThread.setDaemon(true);
+        // Non-daemon thread ensures worker stays alive during background operation
+        workerThread.setDaemon(false);
         workerThread.start();
     }
 
@@ -138,12 +152,22 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
             Intent restartIntent = new Intent(getApplicationContext(), FleetMonitoringService.class);
             restartIntent.setPackage(getPackageName());
 
-            PendingIntent pendingIntent = PendingIntent.getService(
-                    getApplicationContext(),
-                    1001,
-                    restartIntent,
-                    PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
-            );
+            PendingIntent pendingIntent;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                pendingIntent = PendingIntent.getForegroundService(
+                        getApplicationContext(),
+                        1001,
+                        restartIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+            } else {
+                pendingIntent = PendingIntent.getService(
+                        getApplicationContext(),
+                        1001,
+                        restartIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+                );
+            }
 
             AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
             if (alarmManager != null) {
@@ -213,7 +237,7 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         return new NotificationCompat.Builder(this, CHANNEL_SERVICE_ID)
                 .setContentTitle("AbsTracker Fleet Guard Active")
                 .setContentText("Monitoring live vehicle ignition & GPS telematics 24x7")
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_stat_telematics)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -253,6 +277,37 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
             } catch (Exception e) {
                 Log.e(TAG, "TTS speak error: " + e.getMessage());
             }
+        }
+    }
+
+    private void loadSavedIgnitionStates() {
+        try {
+            SharedPreferences prefs = getSharedPreferences("AbsTrackerPrefs", Context.MODE_PRIVATE);
+            String jsonStr = prefs.getString("prev_ignitions_json", "{}");
+            JSONObject obj = new JSONObject(jsonStr);
+            Iterator<String> keys = obj.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                int id = Integer.parseInt(key);
+                boolean val = obj.getBoolean(key);
+                prevIgnitions.put(id, val);
+            }
+            Log.i(TAG, "Loaded saved ignition states count: " + prevIgnitions.size());
+        } catch (Exception e) {
+            Log.w(TAG, "Error loading saved ignition states: " + e.getMessage());
+        }
+    }
+
+    private void saveSavedIgnitionStates() {
+        try {
+            SharedPreferences prefs = getSharedPreferences("AbsTrackerPrefs", Context.MODE_PRIVATE);
+            JSONObject obj = new JSONObject();
+            for (Map.Entry<Integer, Boolean> entry : prevIgnitions.entrySet()) {
+                obj.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            prefs.edit().putString("prev_ignitions_json", obj.toString()).apply();
+        } catch (Exception e) {
+            Log.w(TAG, "Error saving ignition states: " + e.getMessage());
         }
     }
 
@@ -325,6 +380,8 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
             if (jsonStr == null) return;
 
             JSONArray arr = new JSONArray(jsonStr);
+            boolean stateChanged = false;
+
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject pos = arr.getJSONObject(i);
                 int devId = pos.optInt("deviceId", -1);
@@ -345,9 +402,28 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
                         // Ignition state changed!
                         String rawName = deviceNames.getOrDefault(devId, "Vehicle");
                         triggerIgnitionAlert(rawName, isIgnOn, devId);
+                        stateChanged = true;
                     }
+                } else {
+                    stateChanged = true;
                 }
                 prevIgnitions.put(devId, isIgnOn);
+
+                // High speed telematics alert (> 85 km/h)
+                double speedKnots = pos.optDouble("speed", 0.0);
+                int speedKmh = (int) Math.round(speedKnots * 1.852);
+                if (speedKmh > 85) {
+                    Long lastSpeedAlert = lastOverspeedAlerts.get(devId);
+                    if (lastSpeedAlert == null || (System.currentTimeMillis() - lastSpeedAlert > 180000)) {
+                        lastOverspeedAlerts.put(devId, System.currentTimeMillis());
+                        String rawName = deviceNames.getOrDefault(devId, "Vehicle");
+                        triggerSpeedAlert(rawName, speedKmh, devId);
+                    }
+                }
+            }
+
+            if (stateChanged) {
+                saveSavedIgnitionStates();
             }
         } catch (Exception e) {
             Log.w(TAG, "Error fetching positions: " + e.getMessage());
@@ -376,11 +452,9 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
     }
 
     private void triggerIgnitionAlert(String rawName, boolean isIgnOn, int devId) {
-        // Format clean vehicle plate and label
         String plate = rawName;
         String label = "";
 
-        // Check if rawName is formatted like "BE25PA0494(UDASNU-THANA)" or "BR01PM2106 (TOWN THANA)"
         int openParen = rawName.indexOf('(');
         int closeParen = rawName.indexOf(')');
         if (openParen > 0 && closeParen > openParen) {
@@ -402,7 +476,7 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         // Store into persistent SharedPreferences alert history for WebView
         try {
             JSONObject alertObj = new JSONObject();
-            alertObj.put("id", "bg-" + devId + "-" + System.currentTimeMillis());
+            alertObj.put("id", "bg-ign-" + devId + "-" + System.currentTimeMillis());
             alertObj.put("deviceId", devId);
             alertObj.put("vehicleName", rawName);
             alertObj.put("vehiclePlate", plate);
@@ -422,32 +496,72 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         speakAlert(spoken);
 
         // 2. High-priority Android notification with sound & vibration
-        Intent openIntent = new Intent(this, MainActivity.class);
-        openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, devId + (int) System.currentTimeMillis(), openIntent,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
-        );
+        postSystemNotification(devId, title, body);
+    }
 
-        Uri defaultSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+    private void triggerSpeedAlert(String rawName, int speedKmh, int devId) {
+        String plate = rawName;
+        int openParen = rawName.indexOf('(');
+        int closeParen = rawName.indexOf(')');
+        if (openParen > 0 && closeParen > openParen) {
+            plate = rawName.substring(0, openParen).trim();
+        }
 
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ALERT_ID)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .setSound(defaultSound)
-                .setVibrate(new long[]{0, 350, 200, 350})
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setDefaults(Notification.DEFAULT_ALL)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .build();
+        String title = "[" + plate + "] Overspeed Warning";
+        String body = plate + " is moving at " + speedKmh + " km/h (speed limit exceeded).";
 
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null) {
-            int notifId = (int) (System.currentTimeMillis() % 100000) + devId;
-            nm.notify(notifId, notification);
+        try {
+            JSONObject alertObj = new JSONObject();
+            alertObj.put("id", "bg-spd-" + devId + "-" + System.currentTimeMillis());
+            alertObj.put("deviceId", devId);
+            alertObj.put("vehicleName", rawName);
+            alertObj.put("vehiclePlate", plate);
+            alertObj.put("category", "car");
+            alertObj.put("type", "overspeed");
+            alertObj.put("categoryType", "alarm");
+            alertObj.put("title", title);
+            alertObj.put("message", body);
+            alertObj.put("address", "Live GPS Coordinates");
+            alertObj.put("severity", "warning");
+            alertObj.put("time", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date()));
+            saveAlertToHistory(alertObj);
+        } catch (Exception ignored) {}
+
+        speakAlert("Warning " + plate + " Overspeed " + speedKmh + " kilometers per hour");
+        postSystemNotification(devId + 50000, title, body);
+    }
+
+    private void postSystemNotification(int notificationSeed, String title, String body) {
+        try {
+            Intent openIntent = new Intent(this, MainActivity.class);
+            openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    this, notificationSeed + (int) System.currentTimeMillis(), openIntent,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
+            );
+
+            Uri defaultSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+
+            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ALERT_ID)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setSmallIcon(R.drawable.ic_stat_telematics)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .setSound(defaultSound)
+                    .setVibrate(new long[]{0, 350, 200, 350})
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setDefaults(Notification.DEFAULT_ALL)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .build();
+
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                int notifId = (int) (System.currentTimeMillis() % 100000) + (notificationSeed % 1000);
+                nm.notify(notifId, notification);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "postSystemNotification error: " + e.getMessage(), e);
         }
     }
 

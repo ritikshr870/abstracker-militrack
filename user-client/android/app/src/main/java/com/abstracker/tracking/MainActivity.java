@@ -36,8 +36,8 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
-        // 2. Auto-prompt for Battery Optimization Exemption so background service is never killed
-        requestBatteryOptimizationExemption();
+        // 2. Defer Battery Optimization Exemption prompt so notification dialog is not interrupted
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::requestBatteryOptimizationExemption, 2500);
 
         try {
             WebView webView = getBridge().getWebView();
@@ -51,6 +51,17 @@ public class MainActivity extends BridgeActivity {
         String authHeader = prefs.getString("auth_header", null);
         if (authHeader != null && !authHeader.trim().isEmpty()) {
             startFleetService();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 101) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.i("MainActivity", "POST_NOTIFICATIONS permission granted by user");
+                startFleetService();
+            }
         }
     }
 
@@ -70,11 +81,15 @@ public class MainActivity extends BridgeActivity {
     }
 
     public void startFleetService() {
-        Intent intent = new Intent(this, FleetMonitoringService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
+        try {
+            Intent intent = new Intent(this, FleetMonitoringService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+        } catch (Exception e) {
+            Log.e("MainActivity", "Error starting FleetMonitoringService: " + e.getMessage(), e);
         }
     }
 

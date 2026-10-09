@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { api, WS_BASE_URL } from '../api/client';
-import { useAuth } from './AuthContext';
+import { useAuth, ensureNativeMonitoring } from './AuthContext';
 import { sendPushNotification, speakVehicleAlert, requestNotificationPermission } from '../utils/notificationManager';
 
 const TrackingContext = createContext(null);
@@ -271,6 +271,7 @@ export function TrackingProvider({ children }) {
       requestNotificationPermission().catch(() => {});
     } catch {}
 
+    ensureNativeMonitoring();
     fetchData();
     fetchUpstreamNotifications();
     syncNativeBackgroundAlerts();

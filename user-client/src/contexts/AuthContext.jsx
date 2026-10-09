@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../api/client';
 
+export const ensureNativeMonitoring = (auth) => {
+  try {
+    const curAuth = auth || localStorage.getItem('abstracker_auth_header');
+    if (curAuth && typeof window !== 'undefined' && window.AndroidNative?.startMonitoring) {
+      window.AndroidNative.startMonitoring(curAuth);
+    }
+  } catch (e) {}
+};
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -16,6 +25,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let isMounted = true;
+
+    // Proactively register background monitoring service with retries to account for WebView bridge loading
+    ensureNativeMonitoring();
+    const t1 = setTimeout(ensureNativeMonitoring, 1000);
+    const t2 = setTimeout(ensureNativeMonitoring, 3000);
+    const t3 = setTimeout(ensureNativeMonitoring, 6000);
+
     async function initSession() {
       const savedUser = localStorage.getItem('abstracker_user');
       const savedAuth = localStorage.getItem('abstracker_auth_header');

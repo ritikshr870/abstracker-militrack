@@ -1097,84 +1097,6 @@ export default function ReportsPage() {
       {/* Main Report Body: Cards or Exact Grid Table */}
       <div className="flex-1 overflow-y-auto custom-scroll p-3 sm:p-4 space-y-4 pb-24">
         
-        {/* MULTI-VEHICLE COUNT & METRICS BREAKDOWN DECK */}
-        {selectedVehicleIds.length > 1 && vehicleStatsSummary.length > 0 && !loading && displayedReportData.length > 0 && (
-          <div className="bg-white border border-slate-300 rounded-3xl p-4 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                  Vehicle-Wise Telematics Count &amp; Summary
-                </h4>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-500">
-                  {selectedVehicleIds.length} Vehicles in Report
-                </span>
-                {inReportVehicleFilter !== 'all' && (
-                  <button
-                    onClick={() => setInReportVehicleFilter('all')}
-                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md cursor-pointer"
-                  >
-                    Reset to All
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {vehicleStatsSummary.map((vs, idx) => {
-                const isFiltered = inReportVehicleFilter === String(vs.vehicle.id);
-                return (
-                  <div
-                    key={vs.vehicle.id}
-                    onClick={() => setInReportVehicleFilter(isFiltered ? 'all' : String(vs.vehicle.id))}
-                    className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${
-                      isFiltered
-                        ? 'bg-indigo-50/80 border-indigo-600 shadow-sm'
-                        : 'bg-slate-50 hover:bg-slate-100/70 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <VehicleCategoryIcon category={vs.vehicle.category} size={18} className="text-indigo-600 shrink-0" />
-                        <span className="font-black text-xs text-slate-900 truncate">{vs.vehicle.name}</span>
-                      </div>
-                      <span className="font-mono text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-md font-bold text-slate-600">
-                        {vs.vehicle.uniqueId || 'GPS'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-1.5 pt-2 text-center">
-                      <div className="bg-white p-1.5 rounded-xl border border-slate-100">
-                        <span className="text-[9px] text-slate-400 font-bold uppercase block">
-                          {reportType === 'trips' ? 'Trips' : reportType === 'stops' ? 'Stops' : 'Records'}
-                        </span>
-                        <span className="text-xs font-black text-indigo-700 font-mono tabular-nums">{vs.count}</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-xl border border-slate-100">
-                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Distance</span>
-                        <span className="text-xs font-black text-emerald-600 font-mono tabular-nums">{vs.totalDistKm} km</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-xl border border-slate-100">
-                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Running</span>
-                        <span className="text-xs font-black text-slate-800 font-mono tabular-nums">{vs.runningHoursStr}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 text-[10px] font-semibold text-slate-500">
-                      <span>Max Speed: <strong className="text-slate-800 font-mono">{vs.maxSpeedKmh} km/h</strong></span>
-                      <span className="text-indigo-600 font-bold">
-                        {isFiltered ? 'Active Filter ✓' : 'Click to view'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {loading ? (
           <VehicleLoadingAnimation
             vehicleNumber={singleSelectedVehicle?.name || `${selectedVehicleIds.length} Fleet Vehicles`}
@@ -1196,14 +1118,14 @@ export default function ReportsPage() {
           selectedVehicleIds.length > 1 && inReportVehicleFilter === 'all' ? (
             vehicleStatsSummary.filter(vs => vs.records.length > 0).map((vs, vIndex) =>
               renderReportTable(vs.records, (
-                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 sm:px-5 flex flex-wrap items-center justify-between gap-3 border-b border-indigo-900/60">
+                <div key={vs.vehicle.id} className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3 border-b border-indigo-900/60">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-mono font-black text-xs">
+                    <span className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-mono font-black text-xs shrink-0">
                       #{vIndex + 1}
                     </span>
-                    <VehicleCategoryIcon category={vs.vehicle.category} size={20} className="text-white" />
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <VehicleCategoryIcon category={vs.vehicle.category} size={28} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm text-white tracking-wide">{vs.vehicle.name}</span>
                         {vs.vehicle.uniqueId && (
                           <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded-md text-slate-300">
@@ -1238,14 +1160,14 @@ export default function ReportsPage() {
           selectedVehicleIds.length > 1 && inReportVehicleFilter === 'all' ? (
             vehicleStatsSummary.filter(vs => vs.records.length > 0).map((vs, vIndex) => (
               <div key={vs.vehicle.id} className="space-y-3">
-                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 sm:px-5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs border border-indigo-900/60">
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3 sm:px-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs border border-indigo-900/60">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-mono font-black text-xs">
+                    <span className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-mono font-black text-xs shrink-0">
                       #{vIndex + 1}
                     </span>
-                    <VehicleCategoryIcon category={vs.vehicle.category} size={20} className="text-white" />
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <VehicleCategoryIcon category={vs.vehicle.category} size={28} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm text-white tracking-wide">{vs.vehicle.name}</span>
                         {vs.vehicle.uniqueId && (
                           <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded-md text-slate-300">
