@@ -323,76 +323,101 @@ export function exportToPDF(reportType, rawData, vehicle, metadata = {}) {
   const genDateStr = `Generated: ${new Date().toLocaleString('en-IN')} | Total Records: ${rows.length}`;
   doc.text(genDateStr, pageWidth - 36 - doc.getTextWidth(genDateStr), currentY);
 
-  // 3. Calculate 4 Executive KPI Stats (TOTAL RUN, TOTAL DURATION, MAX SPEED, TOTAL ENTRIES)
-  let totalKm = 0;
-  let maxSpeedVal = 0;
-  let totalDurationMs = 0;
+  // Check whether multiple vehicles are present in the report
+  const uniqueVehicles = Array.from(new Set(rows.map(r => r['Vehicle Number']).filter(Boolean)));
+  const isMultiVehicle = Boolean(
+    metadata.isMultiVehicle ||
+    (metadata.vehicleCount && metadata.vehicleCount > 1) ||
+    uniqueVehicles.length > 1
+  );
 
-  rows.forEach(r => {
-    // Distance
-    if (r['Distance']) {
-      const match = String(r['Distance']).match(/([\d.]+)/);
-      if (match) totalKm += parseFloat(match[1]);
-    }
-    // Max speed
-    if (r['Max Speed']) {
-      const match = String(r['Max Speed']).match(/([\d.]+)/);
-      if (match) {
-        const spd = parseFloat(match[1]);
-        if (spd > maxSpeedVal) maxSpeedVal = spd;
+  // 3. KPI Stat Cards: ONLY for SINGLE vehicle!
+  // When multiple vehicles are selected, user requested:
+  // "jab ek se zada vecihle select kre report genrete ke liye to report me ye nhi aana chaiye remove this fix and build"
+  if (!isMultiVehicle) {
+    let totalKm = 0;
+    let maxSpeedVal = 0;
+    let totalDurationMs = 0;
+
+    rows.forEach(r => {
+      // Distance
+      if (r['Distance']) {
+        const match = String(r['Distance']).match(/([\d.]+)/);
+        if (match) totalKm += parseFloat(match[1]);
       }
-    } else if (r['Avg Speed']) {
-      const match = String(r['Avg Speed']).match(/([\d.]+)/);
-      if (match) {
-        const spd = parseFloat(match[1]);
-        if (spd > maxSpeedVal) maxSpeedVal = spd;
+      // Max speed
+      if (r['Max Speed']) {
+        const match = String(r['Max Speed']).match(/([\d.]+)/);
+        if (match) {
+          const spd = parseFloat(match[1]);
+          if (spd > maxSpeedVal) maxSpeedVal = spd;
+        }
+      } else if (r['Avg Speed']) {
+        const match = String(r['Avg Speed']).match(/([\d.]+)/);
+        if (match) {
+          const spd = parseFloat(match[1]);
+          if (spd > maxSpeedVal) maxSpeedVal = spd;
+        }
       }
-    }
-    // Duration
-    const durStr = r['Duration'] || r['Halt Duration'] || r['Running Hours'] || '';
-    if (durStr && durStr.includes(':')) {
-      const parts = durStr.split(':');
-      if (parts.length === 2) {
-        totalDurationMs += (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)) * 60 * 1000;
+      // Duration
+      const durStr = r['Duration'] || r['Halt Duration'] || r['Running Hours'] || '';
+      if (durStr && durStr.includes(':')) {
+        const parts = durStr.split(':');
+        if (parts.length === 2) {
+          totalDurationMs += (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)) * 60 * 1000;
+        }
       }
-    }
-  });
+    });
 
-  const totalDurationHrs = totalDurationMs > 0 ? (totalDurationMs / (1000 * 60 * 60)).toFixed(1) : '0';
+    const totalDurationHrs = totalDurationMs > 0 ? (totalDurationMs / (1000 * 60 * 60)).toFixed(1) : '0';
 
-  const statBoxes = [
-    { label: 'TOTAL RUN', val: totalKm > 0 ? `${totalKm.toFixed(2)} km` : (metadata.kpis?.totalKm || '0 km'), color: accentBlue },
-    { label: 'TOTAL DURATION', val: totalDurationMs > 0 ? `${totalDurationHrs} hrs` : (metadata.kpis?.totalTime || '0 hrs'), color: primaryColor },
-    { label: 'MAX SPEED', val: maxSpeedVal > 0 ? `${Math.round(maxSpeedVal)} km/h` : (metadata.kpis?.maxSpeed || '0 km/h'), color: brandRed },
-    { label: 'TOTAL ENTRIES', val: String(rows.length), color: emeraldGreen }
-  ];
+    const statBoxes = [
+      { label: 'TOTAL RUN', val: totalKm > 0 ? `${totalKm.toFixed(2)} km` : (metadata.kpis?.totalKm || '0 km'), color: accentBlue },
+      { label: 'TOTAL DURATION', val: totalDurationMs > 0 ? `${totalDurationHrs} hrs` : (metadata.kpis?.totalTime || '0 hrs'), color: primaryColor },
+      { label: 'MAX SPEED', val: maxSpeedVal > 0 ? `${Math.round(maxSpeedVal)} km/h` : (metadata.kpis?.maxSpeed || '0 km/h'), color: brandRed },
+      { label: 'TOTAL ENTRIES', val: String(rows.length), color: emeraldGreen }
+    ];
 
-  currentY += 16;
-  const boxWidth = (pageWidth - 72 - 36) / 4;
-  const boxHeight = 44;
+    currentY += 16;
+    const boxWidth = (pageWidth - 72 - 36) / 4;
+    const boxHeight = 44;
 
-  statBoxes.forEach((stat, i) => {
-    const bx = 36 + i * (boxWidth + 12);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(bx, currentY, boxWidth, boxHeight, 6, 6, 'FD');
+    statBoxes.forEach((stat, i) => {
+      const bx = 36 + i * (boxWidth + 12);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(bx, currentY, boxWidth, boxHeight, 6, 6, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text(stat.label, bx + 10, currentY + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(stat.label, bx + 10, currentY + 15);
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(...stat.color);
-    doc.text(stat.val, bx + 10, currentY + 34);
-  });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(...stat.color);
+      doc.text(stat.val, bx + 10, currentY + 34);
+    });
 
-  currentY += boxHeight + 16;
+    currentY += boxHeight + 16;
+  } else {
+    // When multiple vehicles are selected, leave a clean small gap directly below the metadata header line
+    currentY += 14;
+  }
+
+  // Sort rows cleanly by vehicle number when multiple vehicles are present
+  let tableRows = rows;
+  if (isMultiVehicle) {
+    tableRows = [...rows].sort((a, b) => {
+      const vA = String(a['Vehicle Number'] || '');
+      const vB = String(b['Vehicle Number'] || '');
+      return vA.localeCompare(vB);
+    });
+  }
 
   // 4. Data Table
-  const tableHeaders = Object.keys(rows[0]);
-  const tableData = rows.map(r => Object.values(r));
+  const tableHeaders = Object.keys(tableRows[0]);
+  const tableData = tableRows.map(r => Object.values(r));
 
   const colStyles = {};
   tableHeaders.forEach((h, idx) => {

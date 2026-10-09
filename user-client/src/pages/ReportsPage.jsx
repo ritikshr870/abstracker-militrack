@@ -320,8 +320,14 @@ export default function ReportsPage() {
       : (dateRange === 'month' ? 'Last 30 Days'
       : `${customFrom} to ${customTo}`)));
 
-    const count = selectedVehicleIds.length;
-    const singleVeh = liveVehicles.find(v => v.id === selectedVehicleIds[0]);
+    const count = inReportVehicleFilter === 'all' 
+      ? selectedVehicleIds.length 
+      : 1;
+    const singleVeh = count === 1
+      ? (inReportVehicleFilter !== 'all'
+          ? liveVehicles.find(v => v.id === Number(inReportVehicleFilter))
+          : liveVehicles.find(v => v.id === selectedVehicleIds[0]))
+      : null;
     const vehicleLabel = count === 1
       ? (singleVeh?.name || 'Vehicle')
       : (count === liveVehicles.length ? `All Fleet (${count} Vehicles)` : `${count} Vehicles Selected`);
@@ -332,6 +338,8 @@ export default function ReportsPage() {
       dateRange: rangeLabel,
       vehicleLabel: vehicleLabel,
       vehicleScope: count === 1 ? singleVeh?.name : `${count} Vehicles Selected`,
+      vehicleCount: count,
+      isMultiVehicle: count > 1,
       kpis: count === 1 ? {
         totalKm: totalTripKm,
         totalTime: `${totalDurationHrs} hrs`,
@@ -342,6 +350,9 @@ export default function ReportsPage() {
   };
 
   const getExportVehicleTarget = () => {
+    if (inReportVehicleFilter !== 'all') {
+      return liveVehicles.find(v => v.id === Number(inReportVehicleFilter)) || { name: 'Vehicle', category: 'car' };
+    }
     if (selectedVehicleIds.length === 1) {
       return liveVehicles.find(v => v.id === selectedVehicleIds[0]);
     }
