@@ -3055,6 +3055,13 @@ app.get(['/app/', '/app/*'], (req, res) => {
   res.sendFile(path.join(__dirname, 'user-client', 'dist', 'index.html'));
 });
 
+// Public Live Vehicle Tracking Link Fallbacks (/track/:id and /share/:id)
+app.get(['/track/:id', '/share/:id'], (req, res) => {
+  const queryStr = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+  const id = req.params.id || '';
+  res.redirect(`/app/#/track/${id}${queryStr}`);
+});
+
 // Backward-compatible redirect from /user to /app
 app.get(['/user', '/user/*'], (req, res) => {
   res.redirect('/app');

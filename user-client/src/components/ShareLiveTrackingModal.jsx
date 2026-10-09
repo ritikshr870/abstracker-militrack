@@ -49,8 +49,8 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
     }
   }, [vehicle, expiryTimestamp]);
 
-  // Generate public tracking link with hash router & instantaneous payload params
-  const webOrigin = isBrowserWeb ? (window.location.origin + window.location.pathname).replace(/\/$/, '') : PRODUCTION_API_ORIGIN;
+  // Generate public tracking link pointing to customer portal at https://track.abstracker.org/app
+  const shareBaseUrl = 'https://track.abstracker.org/app';
   
   const params = new URLSearchParams();
   if (expiryTimestamp > 0) params.set('exp', String(expiryTimestamp));
@@ -65,7 +65,7 @@ export default function ShareLiveTrackingModal({ vehicle, onClose }) {
   if (vehicle.category) params.set('cat', String(vehicle.category));
   if (vehicle.address && vehicle.address !== 'Address updating...') params.set('addr', vehicle.address);
 
-  const shareUrl = `${webOrigin}/#/track/${vehicle.id}?${params.toString()}`;
+  const shareUrl = `${shareBaseUrl}/#/track/${vehicle.id}?${params.toString()}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl);

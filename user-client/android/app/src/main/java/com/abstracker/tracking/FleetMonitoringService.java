@@ -35,6 +35,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import android.app.AlarmManager;
+import android.os.SystemClock;
+
 public class FleetMonitoringService extends Service implements TextToSpeech.OnInitListener {
 
     private static final String TAG = "FleetMonitoringService";
@@ -42,8 +45,8 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
     public static final String CHANNEL_ALERT_ID = "abstracker-telematics-alerts";
     private static final int SERVICE_NOTIFICATION_ID = 8801;
 
-    private Handler handler;
-    private Runnable pollRunnable;
+    private Thread workerThread;
+    private volatile boolean isRunning = false;
     private TextToSpeech tts;
     private boolean ttsReady = false;
 
@@ -60,15 +63,6 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
 
         createNotificationChannels();
         initTextToSpeech();
-
-        handler = new Handler(Looper.getMainLooper());
-        pollRunnable = new Runnable() {
-            @Override
-            public void run() {
-                new Thread(() -> checkFleetTelematics()).start();
-                handler.postDelayed(this, 10000); // Poll every 10 seconds in background
-            }
-        };
     }
 
     @Override
@@ -79,22 +73,89 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         Notification serviceNotification = buildServiceNotification();
         startForeground(SERVICE_NOTIFICATION_ID, serviceNotification);
 
-        handler.removeCallbacks(pollRunnable);
-        handler.post(pollRunnable);
+        startWorkerThread();
 
         return START_STICKY;
+    }
+
+    private synchronized void startWorkerThread() {
+        if (isRunning && workerThread != null && workerThread.isAlive()) {
+            return;
+        }
+        isRunning = true;
+        workerThread = new Thread(() -> {
+            Log.i(TAG, "Background polling worker thread active");
+            while (isRunning) {
+                try {
+                    checkFleetTelematics();
+                } catch (Throwable t) {
+                    Log.w(TAG, "checkFleetTelematics error: " + t.getMessage());
+                }
+
+                try {
+                    Thread.sleep(8000); // 8-second continuous polling
+                } catch (InterruptedException ie) {
+                    break;
+                }
+            }
+        }, "AbsTrackerWorkerThread");
+        workerThread.setDaemon(true);
+        workerThread.start();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.i(TAG, "onTaskRemoved: App closed/swiped away. Scheduling immediate resurrection via AlarmManager...");
+
+        // Resurrect service 1 second after app swipe-close
+        scheduleServiceResurrection();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         Log.i(TAG, "FleetMonitoringService onDestroy");
-        if (handler != null && pollRunnable != null) {
-            handler.removeCallbacks(pollRunnable);
+        isRunning = false;
+        if (workerThread != null) {
+            workerThread.interrupt();
         }
         if (tts != null) {
             tts.stop();
             tts.shutdown();
+        }
+
+        // If user is still logged in, make sure service comes right back
+        SharedPreferences prefs = getSharedPreferences("AbsTrackerPrefs", Context.MODE_PRIVATE);
+        String authHeader = prefs.getString("auth_header", null);
+        if (authHeader != null && !authHeader.trim().isEmpty()) {
+            scheduleServiceResurrection();
+        }
+    }
+
+    private void scheduleServiceResurrection() {
+        try {
+            Intent restartIntent = new Intent(getApplicationContext(), FleetMonitoringService.class);
+            restartIntent.setPackage(getPackageName());
+
+            PendingIntent pendingIntent = PendingIntent.getService(
+                    getApplicationContext(),
+                    1001,
+                    restartIntent,
+                    PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            );
+
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                long triggerAt = SystemClock.elapsedRealtime() + 1000;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pendingIntent);
+                } else {
+                    alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pendingIntent);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "scheduleServiceResurrection failed: " + e.getMessage());
         }
     }
 

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { api, WS_BASE_URL } from '../api/client';
 import { useAuth } from './AuthContext';
-import { sendPushNotification, speakVehicleAlert } from '../utils/notificationManager';
+import { sendPushNotification, speakVehicleAlert, requestNotificationPermission } from '../utils/notificationManager';
 
 const TrackingContext = createContext(null);
 
@@ -155,22 +155,68 @@ export function TrackingProvider({ children }) {
 
   const fetchUpstreamNotifications = async () => {
     try {
-      const res = await api.get('/api/notifications');
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        const mapped = res.data.map((n, i) => ({
-          id: n.id ? `notif-${n.id}` : `notif-${i}`,
-          deviceId: n.deviceId,
-          vehicleName: devicesMap[n.deviceId]?.name || 'Vehicle',
-          vehiclePlate: devicesMap[n.deviceId]?.uniqueId || '',
-          category: devicesMap[n.deviceId]?.category || 'car',
-          type: n.type || 'alarm',
-          categoryType: n.type?.toLowerCase().includes('ignition') ? 'ignition' : 'alarm',
-          title: n.type ? n.type.replace(/([A-Z])/g, ' $1').trim() : 'Telematics Event',
-          message: n.description || 'Notification recorded',
-          address: positionsMap[n.deviceId]?.address || 'GPS Coordinates',
-          severity: 'info',
-          time: n.eventTime || new Date().toISOString()
-        }));
+      const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const to = new Date().toISOString();
+
+      let eventsData = [];
+      try {
+        const eventsRes = await api.get('/api/reports/events', { params: { from, to } });
+        if (Array.isArray(eventsRes.data) && eventsRes.data.length > 0) {
+          eventsData = eventsRes.data;
+        }
+      } catch {}
+
+      if (eventsData.length === 0) {
+        try {
+          const notifRes = await api.get('/api/notifications');
+          if (Array.isArray(notifRes.data)) {
+            eventsData = notifRes.data;
+          }
+        } catch {}
+      }
+
+      if (eventsData.length > 0) {
+        const mapped = eventsData.map((n, i) => {
+          const dev = devicesMap[n.deviceId] || {};
+          const { plate, label, display } = parseVehicleNames(dev);
+          const tLower = (n.type || '').toLowerCase();
+          const isIgnOn = tLower.includes('ignon') || tLower === 'ignitionon';
+          const isIgnOff = tLower.includes('ignoff') || tLower === 'ignitionoff';
+          const isSpeed = tLower.includes('speed') || tLower.includes('overspeed');
+
+          let cleanTitle = `[${plate}] Telematics Event`;
+          let cleanMessage = `${label ? label + ': ' : ''}Event recorded`;
+          let catType = 'alarm';
+
+          if (isIgnOn) {
+            cleanTitle = `[${plate}] Engine ON`;
+            cleanMessage = `${label ? label + ': ' : ''}Vehicle ignition switched ON.`;
+            catType = 'ignition';
+          } else if (isIgnOff) {
+            cleanTitle = `[${plate}] Engine OFF`;
+            cleanMessage = `${label ? label + ': ' : ''}Vehicle parked and ignition turned OFF.`;
+            catType = 'ignition';
+          } else if (isSpeed) {
+            cleanTitle = `[${plate}] Overspeed Warning`;
+            cleanMessage = `${label ? label + ': ' : ''}Vehicle exceeded preset speed threshold.`;
+            catType = 'alarm';
+          }
+
+          return {
+            id: n.id ? `ev-${n.id}` : `ev-${i}`,
+            deviceId: n.deviceId,
+            vehicleName: display,
+            vehiclePlate: plate,
+            category: dev.category || 'car',
+            type: n.type || 'alarm',
+            categoryType: catType,
+            title: cleanTitle,
+            message: n.description || cleanMessage,
+            address: positionsMap[n.deviceId]?.address || 'Live GPS Coordinates',
+            severity: isIgnOff ? 'danger' : (isIgnOn ? 'info' : 'warning'),
+            time: n.eventTime || n.serverTime || new Date().toISOString()
+          };
+        });
 
         setAlerts(prev => {
           const ids = new Set(prev.map(a => a.id));
@@ -219,6 +265,11 @@ export function TrackingProvider({ children }) {
       setAlerts([]);
       return;
     }
+
+    // Auto-request push notification permission without requiring manual user modal click
+    try {
+      requestNotificationPermission().catch(() => {});
+    } catch {}
 
     fetchData();
     fetchUpstreamNotifications();

@@ -85,8 +85,47 @@ export default function VehiclesPage() {
   return (
     <div className="w-full h-full flex flex-col bg-slate-100 overflow-hidden select-none font-sans">
       
-      {/* Search & Filter Header */}
+      {/* Search & Filter Header with Fleet Overview */}
       <div className="p-3.5 sm:p-4 bg-white border-b border-slate-200/90 space-y-3 shrink-0 shadow-xs">
+        
+        {/* Fleet KPI Quick Glance Grid */}
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <div
+            onClick={() => setFilterStatus('all')}
+            className={`p-2 rounded-2xl border transition cursor-pointer ${filterStatus === 'all' ? 'bg-blue-50 border-blue-500 shadow-xs ring-1 ring-blue-500/20' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'}`}
+          >
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Fleet</span>
+            <span className="text-sm sm:text-base font-black text-slate-900 font-mono tabular-nums">{stats.total}</span>
+          </div>
+          <div
+            onClick={() => setFilterStatus('running')}
+            className={`p-2 rounded-2xl border transition cursor-pointer ${filterStatus === 'running' ? 'bg-emerald-50 border-emerald-500 shadow-xs ring-1 ring-emerald-500/20' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'}`}
+          >
+            <span className="text-[10px] font-bold text-emerald-700 uppercase flex items-center justify-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Running
+            </span>
+            <span className="text-sm sm:text-base font-black text-emerald-600 font-mono tabular-nums">{stats.running}</span>
+          </div>
+          <div
+            onClick={() => setFilterStatus('idle')}
+            className={`p-2 rounded-2xl border transition cursor-pointer ${filterStatus === 'idle' ? 'bg-amber-50 border-amber-500 shadow-xs ring-1 ring-amber-500/20' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'}`}
+          >
+            <span className="text-[10px] font-bold text-amber-700 uppercase flex items-center justify-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Idle
+            </span>
+            <span className="text-sm sm:text-base font-black text-amber-600 font-mono tabular-nums">{stats.idle}</span>
+          </div>
+          <div
+            onClick={() => setFilterStatus('parked')}
+            className={`p-2 rounded-2xl border transition cursor-pointer ${filterStatus === 'parked' ? 'bg-red-50 border-red-500 shadow-xs ring-1 ring-red-500/20' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'}`}
+          >
+            <span className="text-[10px] font-bold text-red-700 uppercase flex items-center justify-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Parked
+            </span>
+            <span className="text-sm sm:text-base font-black text-red-600 font-mono tabular-nums">{stats.parked}</span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -114,7 +153,7 @@ export default function VehiclesPage() {
             <button
               key={tab.key}
               onClick={() => setFilterStatus(tab.key)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
                 filterStatus === tab.key
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
