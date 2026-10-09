@@ -167,16 +167,9 @@ export default function VehiclesPage() {
                           <VehicleCategoryIcon category={v.category} className="w-full h-full object-contain" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition leading-tight tracking-tight">
-                              {v.name}
-                            </h3>
-                            {v.plateNumber && v.plateNumber !== v.name && (
-                              <span className="text-[10px] font-mono font-bold bg-slate-100 px-1.5 py-0.2 rounded text-slate-600 border border-slate-200">
-                                {v.plateNumber}
-                              </span>
-                            )}
-                          </div>
+                          <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition leading-tight tracking-tight">
+                            {v.name}
+                          </h3>
                           <p className="text-[11px] text-slate-500 font-semibold mt-0.5 capitalize">
                             {v.category}
                           </p>

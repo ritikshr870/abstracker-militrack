@@ -186,6 +186,32 @@ export function TrackingProvider({ children }) {
     } catch {}
   };
 
+  const syncNativeBackgroundAlerts = () => {
+    try {
+      if (typeof window !== 'undefined' && window.AndroidNative && window.AndroidNative.getBackgroundAlerts) {
+        const raw = window.AndroidNative.getBackgroundAlerts();
+        if (raw) {
+          const bgList = JSON.parse(raw);
+          if (Array.isArray(bgList) && bgList.length > 0) {
+            setAlerts(prev => {
+              const existingIds = new Set(prev.map(a => a.id));
+              const newAlerts = bgList.filter(b => !existingIds.has(b.id));
+              if (newAlerts.length > 0) {
+                const combined = [...newAlerts, ...prev].slice(0, 100);
+                try { localStorage.setItem('abstracker_client_alerts', JSON.stringify(combined)); } catch {}
+                return combined;
+              }
+              return prev;
+            });
+            window.AndroidNative.clearBackgroundAlerts();
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Native background alerts sync error:', err);
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       setDevicesMap({});
@@ -196,6 +222,7 @@ export function TrackingProvider({ children }) {
 
     fetchData();
     fetchUpstreamNotifications();
+    syncNativeBackgroundAlerts();
 
     // WebSocket real-time updates
     function connectSocket() {
@@ -286,7 +313,10 @@ export function TrackingProvider({ children }) {
     }
 
     connectSocket();
-    pollTimerRef.current = setInterval(fetchData, 8000);
+    pollTimerRef.current = setInterval(() => {
+      fetchData();
+      syncNativeBackgroundAlerts();
+    }, 8000);
 
     return () => {
       if (socketRef.current) socketRef.current.close();

@@ -15,6 +15,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
 
@@ -201,7 +202,14 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
             return;
         }
 
+        PowerManager.WakeLock wakeLock = null;
         try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "abstracker:telematics_check");
+                wakeLock.acquire(15000); // 15 seconds max hold
+            }
+
             long now = System.currentTimeMillis();
 
             // Refresh device names cache every 2 minutes
@@ -215,6 +223,12 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
 
         } catch (Exception e) {
             Log.w(TAG, "Telematics background check failed: " + e.getMessage());
+        } finally {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                try {
+                    wakeLock.release();
+                } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -279,6 +293,27 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         }
     }
 
+    private void saveAlertToHistory(JSONObject alertJson) {
+        try {
+            SharedPreferences prefs = getSharedPreferences("AbsTrackerPrefs", Context.MODE_PRIVATE);
+            String existingStr = prefs.getString("background_alerts_history", "[]");
+            JSONArray arr = new JSONArray(existingStr);
+            arr.put(alertJson);
+
+            // Keep up to 100 recent alerts
+            if (arr.length() > 100) {
+                JSONArray trimmed = new JSONArray();
+                for (int i = arr.length() - 100; i < arr.length(); i++) {
+                    trimmed.put(arr.get(i));
+                }
+                arr = trimmed;
+            }
+            prefs.edit().putString("background_alerts_history", arr.toString()).apply();
+        } catch (Exception e) {
+            Log.w(TAG, "Error saving alert history: " + e.getMessage());
+        }
+    }
+
     private void triggerIgnitionAlert(String rawName, boolean isIgnOn, int devId) {
         // Format clean vehicle plate and label
         String plate = rawName;
@@ -295,10 +330,31 @@ public class FleetMonitoringService extends Service implements TextToSpeech.OnIn
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
         String timeStr = sdf.format(new Date());
 
+        SimpleDateFormat isoFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        String isoTime = isoFmt.format(new Date());
+
         String title = "[" + plate + "] " + (isIgnOn ? "Engine ON" : "Engine OFF");
         String body = (label.isEmpty() ? plate : label) + ": Ignition switched " + (isIgnOn ? "ON" : "OFF") + " at " + timeStr + ".";
 
         Log.i(TAG, "TRIGGERING BACKGROUND ALERT: " + title + " -> " + body);
+
+        // Store into persistent SharedPreferences alert history for WebView
+        try {
+            JSONObject alertObj = new JSONObject();
+            alertObj.put("id", "bg-" + devId + "-" + System.currentTimeMillis());
+            alertObj.put("deviceId", devId);
+            alertObj.put("vehicleName", rawName);
+            alertObj.put("vehiclePlate", plate);
+            alertObj.put("category", "car");
+            alertObj.put("type", isIgnOn ? "ignitionOn" : "ignitionOff");
+            alertObj.put("categoryType", "ignition");
+            alertObj.put("title", title);
+            alertObj.put("message", body);
+            alertObj.put("address", "Live GPS Coordinates");
+            alertObj.put("severity", isIgnOn ? "info" : "danger");
+            alertObj.put("time", isoTime);
+            saveAlertToHistory(alertObj);
+        } catch (Exception ignored) {}
 
         // 1. Spoken voice announcement through speaker
         String spoken = plate + " Engine " + (isIgnOn ? "On" : "Off");

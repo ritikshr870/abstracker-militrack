@@ -354,16 +354,9 @@ export default function LiveMapPage() {
                   <VehicleCategoryIcon category={selectedVehicle.category} className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-tight tracking-tight">
-                      {selectedVehicle.name}
-                    </h3>
-                    {selectedVehicle.plateNumber && selectedVehicle.plateNumber !== selectedVehicle.name && (
-                      <span className="text-[9px] font-mono font-bold bg-slate-100 px-1 py-0.2 rounded text-slate-600 border border-slate-200">
-                        {selectedVehicle.plateNumber}
-                      </span>
-                    )}
-                  </div>
+                  <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-tight tracking-tight">
+                    {selectedVehicle.name}
+                  </h3>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className={`text-[10px] font-bold uppercase ${
                       selectedVehicle.status === 'running' ? 'text-emerald-600' : (selectedVehicle.status === 'idle' ? 'text-amber-600' : 'text-red-600')
